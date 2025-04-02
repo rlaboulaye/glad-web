@@ -31,7 +31,7 @@ SQLx provides a command-line tool for creating and managing databases as well as
 on the Cargo crates registry as `sqlx-cli` and can be installed like so:
 
 ```shell
-$ cargo install sqlx-cli --features postgres
+$ cargo install sqlx-cli
 ```
 
 ### Installing `sqlite3`
