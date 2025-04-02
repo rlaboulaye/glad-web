@@ -1,0 +1,5 @@
+-- Add cohort table
+CREATE TABLE cohort (
+	cohort_id INTEGER PRIMARY KEY AUTOINCREMENT,
+	cohort_name TEXT COLLATE NOCASE NOT NULL UNIQUE
+);
