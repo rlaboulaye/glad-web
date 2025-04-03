@@ -1,10 +1,10 @@
 pub mod app;
-//pub(crate) mod auth;
-//pub(crate) mod components;
+pub(crate) mod auth;
+pub(crate) mod components;
 #[cfg(feature = "ssr")]
 pub(crate) mod database;
-//pub(crate) mod models;
-//pub(crate) mod routes;
+pub(crate) mod models;
+pub(crate) mod routes;
 #[cfg(feature = "ssr")]
 pub mod setup;
 

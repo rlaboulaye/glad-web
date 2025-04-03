@@ -1,7 +1,8 @@
--- Add request table
-CREATE TABLE request (
-	request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+-- Add query table
+CREATE TABLE query (
+	query_id INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id INTEGER NOT NULL,
+	description TEXT DEFAULT '',
 	file_path TEXT NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'completed', 'errored')) DEFAULT 'pending',

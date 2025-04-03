@@ -47,7 +47,7 @@ pub async fn init_app(configuration_path: Option<&str>) {
                     tower_http::trace::DefaultOnFailure::new().level(tracing::Level::ERROR),
                 ),
         )
-        //.layer(axum::middleware::from_fn(crate::auth::auth_middleware))
+        .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .with_state(leptos_options);
 
     log!("listening on http://{}", &addr);

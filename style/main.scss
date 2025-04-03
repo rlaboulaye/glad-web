@@ -1,4 +1,10 @@
 body {
 	font-family: sans-serif;
 	text-align: center;
+	.navbar-light .navbar-nav .nav-link[aria-current="page"] {
+		color: rgba(0, 0, 0, 0.8);
+	};
+	.inline {
+		display: inline-block;
+	};
 }

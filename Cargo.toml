@@ -24,8 +24,14 @@ sqlx = { version = "0.8", features = [
     "sqlite",
     "chrono",
 ], optional = true }
+serde = { version = "1", features = ["derive"] }
+jsonwebtoken = { version = "9", optional = true }
+regex = { version = "1", optional = true }
+mail-send = { version = "0.5", optional = true }
+argon2 = { version = "0.5", optional = true }
 
 [features]
+default = ["ssr", "hydrate"]
 hydrate = [
     "leptos/hydrate",
     "dep:console_error_panic_hook",
@@ -38,9 +44,26 @@ ssr = [
     "dep:leptos_axum",
     "dep:tower-http",
     "dep:sqlx",
+    "dep:regex",
+    "dep:jsonwebtoken",
+    "dep:mail-send",
+    "dep:argon2",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
+]
+
+[package.metadata.cargo-all-features]
+denylist = [
+    "axum",
+    "tower-http",
+    "tokio",
+    "sqlx",
+    "leptos_axum",
+    "jsonwebtoken",
+    "regex",
+    "mail-send",
+    "argon2",
 ]
 
 # Defines a size-optimized profile for the WASM bundle in release mode
