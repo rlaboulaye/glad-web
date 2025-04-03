@@ -19,6 +19,11 @@ tower-http = { version = "0.6.2", features = ["fs", "trace"], optional = true }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 tracing-wasm = { version = "0.2", optional = true }
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "sqlite",
+    "chrono",
+], optional = true }
 
 [features]
 hydrate = [
@@ -32,6 +37,7 @@ ssr = [
     "dep:tokio",
     "dep:leptos_axum",
     "dep:tower-http",
+    "dep:sqlx",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
