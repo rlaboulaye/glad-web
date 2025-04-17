@@ -47,13 +47,18 @@ pub fn Signup(signup: SignupSignal) -> impl IntoView {
                             let Ok(data) = SignupAction::from_event(&ev) else {
                                 return ev.prevent_default();
                             };
-                            if let Err(x) = validate_signup(data.username, data.email, data.password) {
+                            if let Err(x) = validate_signup(data.username, data.bio, data.email, data.password) {
                                 result_of_call.set(Some(Ok(SignupResponse::ValidationError(x))));
                                 ev.prevent_default();
                             }
                         }>
                             <fieldset class="form-group">
                                 <input name="username" class="form-control form-control-lg" type="text" placeholder="Your Username" required=true/>
+                            </fieldset>
+                            <fieldset class="form-group">
+                                <textarea name="bio" class="form-control form-control-lg" rows="8"
+                                    placeholder="Short bio about you and your work">
+                                </textarea>
                             </fieldset>
                             <fieldset class="form-group">
                                 <input name="email" class="form-control form-control-lg" type="email" placeholder="Email" required=true/>

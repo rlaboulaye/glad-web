@@ -10,11 +10,13 @@ pub enum SignupResponse {
 #[tracing::instrument]
 pub fn validate_signup(
     username: String,
+    bio: String,
     email: String,
     password: String,
 ) -> Result<crate::models::User, String> {
     crate::models::User::default()
         .set_username(username)?
+        .set_bio(bio)?
         .set_password(password)?
         .set_email(email)
 }
@@ -23,10 +25,11 @@ pub fn validate_signup(
 #[server(SignupAction, "/api")]
 pub async fn signup_action(
     username: String,
+    bio: String,
     email: String,
     password: String,
 ) -> Result<SignupResponse, ServerFnError> {
-    match validate_signup(username.clone(), email, password) {
+    match validate_signup(username.clone(), bio, email, password) {
         Ok(user) => match user.insert().await {
             Ok(_) => {
                 crate::auth::set_username(username).await;
