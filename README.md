@@ -12,8 +12,8 @@ Accompanying repositories can be found below:
 ### Clone this Repository
 
 ```shell
-$ git clone https://github.com/rlaboulaye/glad-match
-$ cd glad-match
+$ git clone https://github.com/rlaboulaye/glad-web
+$ cd glad-web
 ```
 
 ### Installing Rust and Cargo
