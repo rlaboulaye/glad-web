@@ -1,6 +1,10 @@
-use argon2::password_hash::{rand_core::OsRng, Error as ArgonError, PasswordHash, SaltString};
-use argon2::{Argon2, PasswordHasher, PasswordVerifier};
+#[cfg(feature = "ssr")]
+use argon2::{
+    password_hash::{rand_core::OsRng, Error as ArgonError, SaltString},
+    Argon2, PasswordHash, PasswordHasher,
+};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "ssr")]
 use tokio::task;
 
 #[derive(Debug, Default, Deserialize, Serialize, Clone)]
@@ -155,6 +159,7 @@ impl User {
 }
 
 // Hash a password in a separate blocking thread
+#[cfg(feature = "ssr")]
 pub async fn hash_password(password: String) -> Result<String, String> {
     task::spawn_blocking(move || {
         let salt = SaltString::generate(&mut OsRng);
@@ -168,14 +173,15 @@ pub async fn hash_password(password: String) -> Result<String, String> {
     .map_err(|e| e.to_string())? // Flatten Result<Result<String, String>, JoinError>
 }
 
-// Verify a password in a separate blocking thread
-//async fn verify_password(password: String, hash: String) -> Result<bool, String> {
-//    task::spawn_blocking(move || {
-//        let parsed_hash = PasswordHash::new(&hash).map_err(|e| e.to_string())?;
-//        Ok(Argon2::default()
-//            .verify_password(password.as_bytes(), &parsed_hash)
-//            .is_ok())
-//    })
-//    .await
-//    .map_err(|e| e.to_string())? // Flatten Result<Result<bool, String>, JoinError>
-//}
+#[cfg(feature = "ssr")]
+pub async fn verify_password(password: String, password_hash: String) -> Result<(), String> {
+    Ok(task::spawn_blocking(move || -> Result<(), String> {
+        let hash =
+            PasswordHash::new(&password_hash).map_err(|e| format!("invalid password hash: {e}"))?;
+
+        hash.verify_password(&[&Argon2::default()], password)
+            .map_err(|_| "password did not match".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??)
+}

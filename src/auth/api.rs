@@ -63,26 +63,21 @@ pub async fn login_action(
     username: String,
     password: String,
 ) -> Result<LoginMessages, ServerFnError> {
-    let password = crate::models::hash_password(password)
+    let hash = sqlx::query_scalar!("SELECT password FROM user where username=$1", username,)
+        .fetch_one(crate::database::get_db())
         .await
-        .expect("Failed to hash password");
-    if sqlx::query_scalar!(
-        "SELECT username FROM user where username=$1 and password=$2",
-        username,
-        password,
-    )
-    .fetch_one(crate::database::get_db())
-    .await
-    .unwrap_or_default()
-        == username
-    {
-        crate::auth::set_username(username).await;
-        leptos_axum::redirect("/");
-        Ok(LoginMessages::Successful)
-    } else {
-        let response_options = use_context::<leptos_axum::ResponseOptions>().unwrap();
-        response_options.set_status(axum::http::StatusCode::FORBIDDEN);
-        Ok(LoginMessages::Unsuccessful)
+        .unwrap_or_default();
+    match crate::models::verify_password(password, hash).await {
+        Ok(_) => {
+            crate::auth::set_username(username).await;
+            leptos_axum::redirect("/");
+            Ok(LoginMessages::Successful)
+        }
+        Err(_) => {
+            let response_options = use_context::<leptos_axum::ResponseOptions>().unwrap();
+            response_options.set_status(axum::http::StatusCode::FORBIDDEN);
+            Ok(LoginMessages::Unsuccessful)
+        }
     }
 }
 

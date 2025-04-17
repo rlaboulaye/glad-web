@@ -41,8 +41,8 @@ pub async fn reset_password_1(email: String) -> Result<String, ServerFnError> {
         // Build a simple multipart message
         let message = mail_send::mail_builder::MessageBuilder::new()
             .from(("Realworld Leptos", creds.email.as_str()))
-            .to(vec![("You", email.as_str())])
-            .subject("Your password reset from realworld leptos")
+            .to(vec![("GLADdb", email.as_str())])
+            .subject("Your password reset from GLADdb")
             .text_body(format!(
                 "You can reset your password accessing the following link: {uri}"
             ));
@@ -219,4 +219,3 @@ fn ConfirmPassword(token: String) -> impl IntoView {
         </div>
     }
 }
-
