@@ -118,8 +118,9 @@ impl User {
             None => String::new(),
         };
         sqlx::query!(
-            "INSERT INTO user(username, email, password) VALUES ($1, $2, $3)",
+            "INSERT INTO user(username, bio, email, password) VALUES ($1, $2, $3, $4)",
             self.username,
+            self.bio,
             self.email,
             password,
         )

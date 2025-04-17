@@ -93,6 +93,7 @@ pub fn App() -> impl IntoView {
                     <Route path=StaticSegment("login") view=move || view! { <Login login/> }/>
                     <Route path=StaticSegment("reset_password") view=move || view! { <ResetPassword/> }/>
                     <Route path=StaticSegment("signup") view=move || view! { <Signup signup/> }/>
+                    <Route path=StaticSegment("settings") view=move || view! { <Settings logout /> }/>
                 </Routes>
             </main>
         </Router>
