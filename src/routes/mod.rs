@@ -1,9 +1,11 @@
+mod find;
 mod home;
 mod login;
 mod reset_password;
 mod settings;
 mod signup;
 
+pub use find::*;
 pub use home::*;
 pub use login::*;
 pub use reset_password::*;

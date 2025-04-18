@@ -161,7 +161,7 @@ impl User {
 
 // Hash a password in a separate blocking thread
 #[cfg(feature = "ssr")]
-pub async fn hash_password(password: String) -> Result<String, String> {
+async fn hash_password(password: String) -> Result<String, String> {
     task::spawn_blocking(move || {
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();

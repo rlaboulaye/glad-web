@@ -14,7 +14,10 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
         <Show when=move || username.with(Option::is_none) fallback=move || {
             view!{
                 <li class="nav-item">
-                    <A class:nav-link=true href="/editor"><i class="ion-compose"></i>" New Article"</A>
+                    <A class:nav-link=true href="/visualize"><i class="ion-compose"></i>" Visualize"</A>
+                </li>
+                <li class="nav-item">
+                    <A class:nav-link=true href="/find"><i class="ion-compose"></i>" Find Controls"</A>
                 </li>
                 <li class="nav-item">
                     <A class:nav-link=true href="/settings"><i class="ion-gear-a"></i>" Settings"</A>

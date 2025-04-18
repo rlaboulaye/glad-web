@@ -50,7 +50,7 @@ pub async fn auth_middleware(
 async fn redirect(req: Request<axum::body::Body>, next: axum::middleware::Next) -> Response {
     let path = req.uri().path();
 
-    if path.starts_with("/settings") || path.starts_with("/editor") {
+    if path.starts_with("/settings") || path.starts_with("/find") {
         // authenticated routes
         Response::builder()
             .status(StatusCode::FOUND)

@@ -4,6 +4,8 @@ CREATE TABLE query (
 	user_id INTEGER NOT NULL,
 	description TEXT DEFAULT '',
 	file_path TEXT NOT NULL,
+	self_described_latino INTEGER NOT NULL,
+	n_controls INTEGER NOT NULL DEFAULT 100,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'completed', 'errored')) DEFAULT 'pending',
 	status_updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
