@@ -131,37 +131,38 @@ pub fn Find() -> impl IntoView {
                                 </fieldset>
                                 <h3>"Select cohorts to exclude from matching procedure:"</h3>
                                 <div class="selected-cohorts">
-                                    //<Suspense fallback=move || view! {<p>"Loading Cohorts"</p> }>
-                                    //    <ErrorBoundary fallback=|_| {
-                                    //        view! { <p class="error-messages text-xs-center">"Something went wrong."</p>}
-                                    //    }>
-                                    //    <div class="scrollable-container">
-                                    //        {
-                                    //            //cohorts_resource.get().unwrap_or_else(|| Ok(Vec::<Cohort>::new())).unwrap_or_else(|_| Vec::<Cohort>::new()).into_iter().map(|cohort| {
-                                    //            cohorts_resource.get().map(move |cohorts_result| {
-                                    //                cohorts_result.map(move |cohorts| {
-                                    //                    view! {
-                                    //                        <For
-                                    //                            each=move || cohorts.clone().into_iter().enumerate()
-                                    //                            key=|(i, _)| *i
-                                    //                            children=move |(_, cohort): (usize, Cohort)| {
-                                    //                                view!{
-                                    //                                    <p>{cohort.cohort_name}</p>
-                                    //                                }
-                                    //                            }
-                                    //                        />
-                                    //                    }
-                                    //                })
-                                    //                    //<div class="checkbox-item">
-                                    //                    //    <input type="checkbox" id=cohort.cohort_id value=cohort.cohort_name.clone() name="cohorts[]" />
-                                    //                    //    <label for=cohort.cohort_id>{cohort.cohort_name}</label>
-                                    //                    //</div>
-                                    //    </div>
-                                    //    </ErrorBoundary>
-                                    //</Suspense>
-                                    //{
-                                    //    move || selected_cohorts.get().into_iter().map(|cohort| cohort.cohort_name).collect::<Vec<_>>().join(", ")
-                                    //}
+                                    //
+                                    <div class="scrollable-container">
+                                        <Suspense fallback=move || view! {<p>"Loading Cohorts"</p> }>
+                                            <ErrorBoundary fallback=|_| {
+                                                view! { <p class="error-messages text-xs-center">"Something went wrong."</p>}
+                                            }>
+                                                //view! {
+                                                {
+                                                    move || {
+                                                        cohorts_resource.get().map(move |cohorts_result| {
+                                                            cohorts_result.map(move |cohorts| {
+                                                                view! {
+                                                                    <For
+                                                                        each=move || cohorts.clone().into_iter().enumerate()
+                                                                        key=|(i, _)| *i
+                                                                        children=move |(_, cohort): (usize, Cohort)| {
+                                                                            view! {
+                                                                                <div class="checkbox-item">
+                                                                                    <input type="checkbox" value=cohort.cohort_name.clone() name="cohorts[]" />
+                                                                                    <label for="cohorts[]">{cohort.cohort_name.clone()}</label>
+                                                                                </div>
+                                                                            }
+                                                                        }
+                                                                    />
+                                                                }
+                                                            })
+                                                        })
+                                                    }
+                                                }
+                                            </ErrorBoundary>
+                                        </Suspense>
+                                    </div>
                                 </div>
                                 <button class="btn btn-lg pull-xs-right btn-primary" type="submit">
                                     "Submit Query"
