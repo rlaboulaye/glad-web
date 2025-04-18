@@ -37,7 +37,7 @@ pub async fn retrieve_cohorts() -> Result<Vec<Cohort>, ServerFnError> {
 #[tracing::instrument]
 pub async fn find_action(
     description: String,
-    self_described_latino: String,
+    #[server(default)] self_described_latino: String,
     n_controls: usize,
 ) -> Result<FindResponse, ServerFnError> {
     let Some(_) = crate::auth::get_username() else {
@@ -116,51 +116,57 @@ pub fn Find() -> impl IntoView {
 
                     <div class="col-md-10 offset-md-1 col-xs-12">
                         <ActionForm action=find_server_action>
-                        <Suspense fallback=move || view! {<p>"Loading Cohorts"</p> }>
-                            <ErrorBoundary fallback=|_| {
-                                view! { <p class="error-messages text-xs-center">"Something went wrong."</p>}
-                            }>
-                                {
-                                    view! {
-                                        <fieldset>
-                                            <fieldset class="form-group">
-                                                <input name="description" type="text" class="form-control" minlength=DESCRIPTION_MIN_LENGTH
-                                                    placeholder="Give a brief description of your project and need for additional controls." />
-                                            </fieldset>
-                                            <fieldset class="form-group">
-                                                <input type="hidden" name="self_described_latino" value="off" />
-                                                <label for="self_described_latino">"Restrict search to self-described latinos only"</label>
-                                                <input name="self_described_latino" type="checkbox" class="form-control" />
-                                            </fieldset>
-                                            <fieldset class="form-group">
-                                                <input name="n_controls" type="number" class="form-control" value=100 />
-                                            </fieldset>
-                                            <h1>"Select cohorts to exclude from matching procedure:"</h1>
-                                            <div class="selected-cohorts">
-                                                {
-                                                    move || selected_cohorts.get().into_iter().map(|cohort| cohort.cohort_name).collect::<Vec<_>>().join(", ")
-                                                }
-                                            </div>
-                                            <div class="scrollable-container">
-                                                {
-                                                    cohorts_resource.get().unwrap_or_else(|| Ok(Vec::<Cohort>::new())).unwrap_or_else(|_| Vec::<Cohort>::new()).into_iter().map(|cohort| {
-                                                        view! {
-                                                            <div class="checkbox-item">
-                                                                <input type="checkbox" id=cohort.cohort_id value=cohort.cohort_name.clone() name="cohorts[]" />
-                                                                <label for=cohort.cohort_id>{cohort.cohort_name}</label>
-                                                            </div>
-                                                        }
-                                                    }).collect_view()
-                                                }
-                                            </div>
-                                            <button class="btn btn-lg pull-xs-right btn-primary" type="submit">
-                                                "Submit Query"
-                                            </button>
-                                        </fieldset>
-                                    }
-                                }
-                            </ErrorBoundary>
-                        </Suspense>
+                            <fieldset>
+                                <fieldset class="form-group">
+                                    <input name="description" type="text" class="form-control" minlength=DESCRIPTION_MIN_LENGTH
+                                        placeholder="Give a brief description of your project and need for additional controls." />
+                                </fieldset>
+                                <fieldset class="form-group">
+                                    <label for="self_described_latino">"Restrict search to self-described latinos only"</label>
+                                    <input name="self_described_latino" type="checkbox" class="form-control" value="on" />
+                                </fieldset>
+                                <h3>"How many controls would you like to find?"</h3>
+                                <fieldset class="form-group">
+                                    <input name="n_controls" type="number" class="form-control" value=100 />
+                                </fieldset>
+                                <h3>"Select cohorts to exclude from matching procedure:"</h3>
+                                <div class="selected-cohorts">
+                                    //<Suspense fallback=move || view! {<p>"Loading Cohorts"</p> }>
+                                    //    <ErrorBoundary fallback=|_| {
+                                    //        view! { <p class="error-messages text-xs-center">"Something went wrong."</p>}
+                                    //    }>
+                                    //    <div class="scrollable-container">
+                                    //        {
+                                    //            //cohorts_resource.get().unwrap_or_else(|| Ok(Vec::<Cohort>::new())).unwrap_or_else(|_| Vec::<Cohort>::new()).into_iter().map(|cohort| {
+                                    //            cohorts_resource.get().map(move |cohorts_result| {
+                                    //                cohorts_result.map(move |cohorts| {
+                                    //                    view! {
+                                    //                        <For
+                                    //                            each=move || cohorts.clone().into_iter().enumerate()
+                                    //                            key=|(i, _)| *i
+                                    //                            children=move |(_, cohort): (usize, Cohort)| {
+                                    //                                view!{
+                                    //                                    <p>{cohort.cohort_name}</p>
+                                    //                                }
+                                    //                            }
+                                    //                        />
+                                    //                    }
+                                    //                })
+                                    //                    //<div class="checkbox-item">
+                                    //                    //    <input type="checkbox" id=cohort.cohort_id value=cohort.cohort_name.clone() name="cohorts[]" />
+                                    //                    //    <label for=cohort.cohort_id>{cohort.cohort_name}</label>
+                                    //                    //</div>
+                                    //    </div>
+                                    //    </ErrorBoundary>
+                                    //</Suspense>
+                                    //{
+                                    //    move || selected_cohorts.get().into_iter().map(|cohort| cohort.cohort_name).collect::<Vec<_>>().join(", ")
+                                    //}
+                                </div>
+                                <button class="btn btn-lg pull-xs-right btn-primary" type="submit">
+                                    "Submit Query"
+                                </button>
+                            </fieldset>
                         </ActionForm>
                     </div>
                 </div>

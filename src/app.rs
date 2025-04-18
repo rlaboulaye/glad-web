@@ -64,7 +64,7 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/glad-web.css"/>
 
         // sets the document title
-        <Title text="Welcome to Leptos"/>
+        <Title text="GLAD"/>
 
         // content for this welcome page
         <Router>
