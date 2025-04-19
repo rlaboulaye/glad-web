@@ -39,6 +39,7 @@ pub async fn find_action(
     description: String,
     #[server(default)] self_described_latino: String,
     n_controls: usize,
+    #[server(default)] cohorts: Vec<String>,
 ) -> Result<FindResponse, ServerFnError> {
     let Some(_) = crate::auth::get_username() else {
         leptos_axum::redirect("/login");
@@ -46,7 +47,6 @@ pub async fn find_action(
             "you should be authenticated".to_string(),
         ));
     };
-    leptos_dom::log!("{self_described_latino}");
     match Query::insert(
         description,
         match self_described_latino.trim() {
@@ -54,11 +54,11 @@ pub async fn find_action(
             _ => false,
         },
         n_controls,
+        cohorts,
     )
     .await
     {
-        Ok(x) => {
-            let query_id = x.last_insert_rowid();
+        Ok(query_id) => {
             leptos_axum::redirect(&format!("/query/{query_id}"));
             Ok(FindResponse::Successful(query_id.to_string()))
         }

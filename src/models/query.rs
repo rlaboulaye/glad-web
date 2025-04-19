@@ -38,7 +38,8 @@ impl Query {
         description: String,
         self_described_latino: bool,
         n_controls: usize,
-    ) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+        excluded_cohorts: Vec<String>,
+    ) -> Result<i64, sqlx::Error> {
         let self_described_latino = self_described_latino as i32;
         let n_controls = n_controls as i32;
         let logged_user = crate::auth::get_username();
@@ -49,7 +50,20 @@ impl Query {
                 .fetch_one(crate::database::get_db())
                 .await
                 .expect("Could not retrieve user_id using username {logged_user}");
-        sqlx::query!(
+        let cohort_query_params = format!("?{}", ", ?".repeat(excluded_cohorts.len() - 1));
+        let cohort_query_str = format!(
+            "SELECT cohort_id FROM cohort WHERE cohort_name IN ( { } )",
+            cohort_query_params
+        );
+        let mut cohort_query = sqlx::query_scalar(&cohort_query_str);
+        for cohort_name in excluded_cohorts {
+            cohort_query = cohort_query.bind(cohort_name);
+        }
+        let excluded_cohort_ids: Vec<i32> = cohort_query
+            .fetch_all(crate::database::get_db())
+            .await
+            .expect("Could not retrieve cohort ids");
+        let query_id = sqlx::query!(
             "INSERT INTO query(user_id, description, file_path, self_described_latino, n_controls) VALUES ($1, $2, $3, $4, $5)",
             logged_user_id,
             description,
@@ -59,6 +73,21 @@ impl Query {
         )
         .execute(crate::database::get_db())
         .await
+        .expect("Could not submit query")
+        .last_insert_rowid();
+        let query_cohort_insert_str = format!(
+            "INSERT INTO query_cohort(query_id, cohort_id) VALUES ({query_id}, ?){}",
+            format!(", ({query_id}, ?)").repeat(excluded_cohort_ids.len() - 1)
+        );
+        let mut query_cohort_insert_query = sqlx::query(&query_cohort_insert_str);
+        for cohort_id in excluded_cohort_ids {
+            query_cohort_insert_query = query_cohort_insert_query.bind(cohort_id);
+        }
+        query_cohort_insert_query
+            .execute(crate::database::get_db())
+            .await
+            .expect("Could not link query to cohorts");
+        Ok(query_id)
     }
 
     #[cfg(feature = "ssr")]
