@@ -132,7 +132,7 @@ pub fn Find() -> impl IntoView {
                                 <h3>"Select cohorts to exclude from matching procedure:"</h3>
                                 <div class="selected-cohorts">
                                     //
-                                    <div class="scrollable-container">
+                                    <div class="scrollable-container overflow-y-auto max-h-64">
                                         <Suspense fallback=move || view! {<p>"Loading Cohorts"</p> }>
                                             <ErrorBoundary fallback=|_| {
                                                 view! { <p class="error-messages text-xs-center">"Something went wrong."</p>}

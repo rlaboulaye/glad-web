@@ -44,6 +44,16 @@ $ sqlite3 --version
 
 If it is not, you can install it either through your operating system's package manager.
 
+### Install and Setup Tailwind
+
+Install Node.js (look up installation for your system).
+
+Install tailwind and setup css configuration:
+```shell
+$ npm install -D tailwindcss@3
+$ npx tailwindcss -i ./style/input.css -o ./style/output.css
+```
+
 ### Configuring the Application
 
 To make working with environment variables easier during development, we can use [.env files] to avoid having
