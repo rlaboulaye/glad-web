@@ -14,14 +14,14 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
         <!DOCTYPE html>
         <html lang="en">
             <head>
-                <meta charset="utf-8"/>
-                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <AutoReload options=options.clone() />
-                <HydrationScripts options/>
-                <MetaTags/>
+                <HydrationScripts options />
+                <MetaTags />
             </head>
             <body>
-                <App/>
+                <App />
             </body>
         </html>
     }
@@ -57,44 +57,48 @@ pub fn App() -> impl IntoView {
 
     view! {
         // injects a stylesheet into the document <head>
-        <Stylesheet href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css"/>
-        <Stylesheet href="https://fonts.googleapis.com/css?family=Titillium+Web:700|Source+Serif+Pro:400,700|Merriweather+Sans:400,700|Source+Sans+Pro:400,300,600,700,300italic,400italic,600italic,700italic"/>
-        <Stylesheet href="https://demo.productionready.io/main.css"/>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
-        <Stylesheet id="leptos" href="/pkg/glad-web.css"/>
+        <Stylesheet id="leptos" href="/pkg/glad-web.css" />
 
         // sets the document title
-        <Title text="GLAD"/>
+        <Title text="GLAD" />
 
         // content for this welcome page
         <Router>
-            <nav class="navbar navbar-light">
-                <div class="container">
-                    <A class:navbar-brand=true href="/" exact=true>"glad"</A>
-                    <ul class="nav navbar-nav pull-xs-right">
-                        <Transition fallback=|| view!{<p>"Loading Navigation bar"</p>}>
-                        {move || user.get().map(move |x| {
+            <Transition fallback=|| {
+                view! { <p>"Loading Navigation bar"</p> }
+            }>
+                {move || {
+                    user.get()
+                        .map(move |x| {
                             username.set(x.map(|y| y.username()).ok());
-                            view! {
-                                <NavItems logout username />
-                            }
-                        })}
-                        </Transition>
-                    </ul>
-                </div>
-            </nav>
+                            view! { <NavItems logout username /> }
+                        })
+                }}
+            </Transition>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
-                    <Route path=StaticSegment("") view=move || view! {
-                        <Transition fallback=|| view!{<p>"Loading HomePage"</p>}>
-                            <HomePage />
-                        </Transition>
-                    }/>
-                    <Route path=StaticSegment("find") view=move || view! { <Find/> }/>
-                    <Route path=StaticSegment("login") view=move || view! { <Login login/> }/>
-                    <Route path=StaticSegment("reset_password") view=move || view! { <ResetPassword/> }/>
-                    <Route path=StaticSegment("signup") view=move || view! { <Signup signup/> }/>
-                    <Route path=StaticSegment("settings") view=move || view! { <Settings logout /> }/>
+                    <Route
+                        path=StaticSegment("")
+                        view=move || {
+                            view! {
+                                <Transition fallback=|| view! { <p>"Loading HomePage"</p> }>
+                                    <HomePage />
+                                </Transition>
+                            }
+                        }
+                    />
+                    <Route path=StaticSegment("find") view=move || view! { <Find /> } />
+                    <Route path=StaticSegment("login") view=move || view! { <Login login /> } />
+                    <Route
+                        path=StaticSegment("reset_password")
+                        view=move || view! { <ResetPassword /> }
+                    />
+                    <Route path=StaticSegment("signup") view=move || view! { <Signup signup /> } />
+                    <Route
+                        path=StaticSegment("settings")
+                        view=move || view! { <Settings logout /> }
+                    />
                 </Routes>
             </main>
         </Router>

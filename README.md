@@ -1,9 +1,11 @@
 # glad-web
 
 Source code for the Genetics of Latin American Diversity (GLAD) web portal.
-[`paper`]:
+
+[`paper`]: https://www.cell.com/cell-genomics/fulltext/S2666-979X(24)00321-5
 
 Accompanying repositories can be found below:
+
 [`glad-match`]: https://github.com/rlaboulaye/glad-match
 [`glad-prep`]: https://github.com/rlaboulaye/glad-prep
 

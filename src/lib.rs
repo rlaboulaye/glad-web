@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 pub mod app;
 pub(crate) mod auth;
 pub(crate) mod components;

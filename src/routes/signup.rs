@@ -29,7 +29,7 @@ pub fn Signup(signup: SignupSignal) -> impl IntoView {
     };
 
     view! {
-        <Title text="Signup"/>
+        <Title text="Signup" />
         <div class="auth-page">
             <div class="container page">
                 <div class="row">
@@ -39,32 +39,60 @@ pub fn Signup(signup: SignupSignal) -> impl IntoView {
                             <A href="/login">"Have an account?"</A>
                         </p>
 
-                        <p class="error-messages text-xs-center">
-                            {error_cb}
-                        </p>
+                        <p class="error-messages text-xs-center">{error_cb}</p>
 
-                        <ActionForm action=signup on:submit=move |ev| {
-                            let Ok(data) = SignupAction::from_event(&ev) else {
-                                return ev.prevent_default();
-                            };
-                            if let Err(x) = validate_signup(data.username, data.bio, data.email, data.password) {
-                                result_of_call.set(Some(Ok(SignupResponse::ValidationError(x))));
-                                ev.prevent_default();
+                        <ActionForm
+                            action=signup
+                            on:submit=move |ev| {
+                                let Ok(data) = SignupAction::from_event(&ev) else {
+                                    return ev.prevent_default();
+                                };
+                                if let Err(x) = validate_signup(
+                                    data.username,
+                                    data.bio,
+                                    data.email,
+                                    data.password,
+                                ) {
+                                    result_of_call
+                                        .set(Some(Ok(SignupResponse::ValidationError(x))));
+                                    ev.prevent_default();
+                                }
                             }
-                        }>
+                        >
                             <fieldset class="form-group">
-                                <input name="username" class="form-control form-control-lg" type="text" placeholder="Your Username" required=true/>
+                                <input
+                                    name="username"
+                                    class="form-control form-control-lg"
+                                    type="text"
+                                    placeholder="Your Username"
+                                    required=true
+                                />
                             </fieldset>
                             <fieldset class="form-group">
-                                <textarea name="bio" class="form-control form-control-lg" rows="8"
-                                    placeholder="Short bio about you and your work">
-                                </textarea>
+                                <textarea
+                                    name="bio"
+                                    class="form-control form-control-lg"
+                                    rows="8"
+                                    placeholder="Short bio about you and your work"
+                                ></textarea>
                             </fieldset>
                             <fieldset class="form-group">
-                                <input name="email" class="form-control form-control-lg" type="email" placeholder="Email" required=true/>
+                                <input
+                                    name="email"
+                                    class="form-control form-control-lg"
+                                    type="email"
+                                    placeholder="Email"
+                                    required=true
+                                />
                             </fieldset>
                             <fieldset class="form-group">
-                                <input name="password" class="form-control form-control-lg" type="password" placeholder="Password" required=true/>
+                                <input
+                                    name="password"
+                                    class="form-control form-control-lg"
+                                    type="password"
+                                    placeholder="Password"
+                                    required=true
+                                />
                             </fieldset>
                             <button class="btn btn-lg btn-primary pull-xs-right">"Sign up"</button>
                         </ActionForm>

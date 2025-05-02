@@ -93,7 +93,7 @@ pub fn Settings(logout: crate::auth::LogoutSignal) -> impl IntoView {
     let resource = Resource::new(|| (), move |_| settings_get());
 
     view! {
-        <Title text="Settings"/>
+        <Title text="Settings" />
 
         <div class="settings-page">
             <div class="container page">
@@ -101,18 +101,28 @@ pub fn Settings(logout: crate::auth::LogoutSignal) -> impl IntoView {
                     <div class="col-md-6 offset-md-3 col-xs-12">
                         <h1 class="text-xs-center">"Profile Settings"</h1>
 
-                        <Suspense fallback=move || view!{<p>"Loading user settings"</p>} >
-                            <ErrorBoundary fallback=|_| view!{<p>"There was a problem while fetching settings, try again later"</p>}>
+                        <Suspense fallback=move || view! { <p>"Loading user settings"</p> }>
+                            <ErrorBoundary fallback=|_| {
+                                view! {
+                                    <p>
+                                        "There was a problem while fetching settings, try again later"
+                                    </p>
+                                }
+                            }>
                                 {move || {
-                                    resource.get().map(move |x| {
-                                        x.map(move |user| view!{<SettingsViewForm user />})
-                                    })
+                                    resource
+                                        .get()
+                                        .map(move |x| {
+                                            x.map(move |user| view! { <SettingsViewForm user /> })
+                                        })
                                 }}
                             </ErrorBoundary>
                         </Suspense>
                         <hr />
                         <ActionForm action=logout>
-                            <button type="submit" class="btn btn-outline-danger">"Or click here to logout."</button>
+                            <button type="submit" class="btn btn-outline-danger">
+                                "Or click here to logout."
+                            </button>
                         </ActionForm>
                     </div>
                 </div>
@@ -134,59 +144,92 @@ fn SettingsViewForm(user: crate::models::User) -> impl IntoView {
     };
 
     view! {
-        <p class="text-xs-center"
-            class:text-success=move || !error()
-            class:error-messages=error
-        >
+        <p class="text-xs-center" class:text-success=move || !error() class:error-messages=error>
             <strong>
-                {move || result.with(|x| {
-                    match x {
-                        Some(Ok(SettingsUpdateError::Successful)) => {
-                            "Successfully update settings".to_string()
-                        },
-                        Some(Ok(SettingsUpdateError::ValidationError(x))) => {
-                            format!("Problem while validating: {x:?}")
-                        },
-                        Some(Ok(SettingsUpdateError::PasswordsNotMatch)) => {
-                            "Passwords don't match".to_string()
-                        },
-                        Some(Err(x)) => format!("{x:?}"),
-                        None => String::new(),
-                    }
-                })}
+                {move || {
+                    result
+                        .with(|x| {
+                            match x {
+                                Some(Ok(SettingsUpdateError::Successful)) => {
+                                    "Successfully update settings".to_string()
+                                }
+                                Some(Ok(SettingsUpdateError::ValidationError(x))) => {
+                                    format!("Problem while validating: {x:?}")
+                                }
+                                Some(Ok(SettingsUpdateError::PasswordsNotMatch)) => {
+                                    "Passwords don't match".to_string()
+                                }
+                                Some(Err(x)) => format!("{x:?}"),
+                                None => String::new(),
+                            }
+                        })
+                }}
             </strong>
         </p>
 
-        <ActionForm action=settings_server_action on:submit=move |ev| {
-            let Ok(data) = SettingsUpdateAction::from_event(&ev) else {
-                return ev.prevent_default();
-            };
-            if let Err(x) = update_user_validation(crate::models::User::default(), data.bio, data.email, data.password, &data.confirm_password) {
-                result.set(Some(Ok(x)));
-                ev.prevent_default();
+        <ActionForm
+            action=settings_server_action
+            on:submit=move |ev| {
+                let Ok(data) = SettingsUpdateAction::from_event(&ev) else {
+                    return ev.prevent_default();
+                };
+                if let Err(x) = update_user_validation(
+                    crate::models::User::default(),
+                    data.bio,
+                    data.email,
+                    data.password,
+                    &data.confirm_password,
+                ) {
+                    result.set(Some(Ok(x)));
+                    ev.prevent_default();
+                }
             }
-        }>
+        >
             <fieldset>
                 <fieldset class="form-group">
-                    <input disabled value=user.username() class="form-control form-control-lg" type="text"
-                        placeholder="Your Name" />
+                    <input
+                        disabled
+                        value=user.username()
+                        class="form-control form-control-lg"
+                        type="text"
+                        placeholder="Your Name"
+                    />
                 </fieldset>
                 <fieldset class="form-group">
-                    <textarea name="bio" class="form-control form-control-lg" rows="8"
-                        placeholder="Short bio about you" prop:value=user.bio().unwrap_or_default()>
-                    </textarea>
+                    <textarea
+                        name="bio"
+                        class="form-control form-control-lg"
+                        rows="8"
+                        placeholder="Short bio about you"
+                        prop:value=user.bio().unwrap_or_default()
+                    ></textarea>
                 </fieldset>
                 <fieldset class="form-group">
-                    <input name="email" value=user.email() class="form-control form-control-lg" type="text"
-                        placeholder="Email" />
+                    <input
+                        name="email"
+                        value=user.email()
+                        class="form-control form-control-lg"
+                        type="text"
+                        placeholder="Email"
+                    />
                 </fieldset>
                 <fieldset class="form-group">
-                    <input name="password" class="form-control form-control-lg" type="password"
-                        placeholder="New Password" />
-                    <input name="confirm_password" class="form-control form-control-lg" type="password"
-                        placeholder="Confirm New Password" />
+                    <input
+                        name="password"
+                        class="form-control form-control-lg"
+                        type="password"
+                        placeholder="New Password"
+                    />
+                    <input
+                        name="confirm_password"
+                        class="form-control form-control-lg"
+                        type="password"
+                        placeholder="Confirm New Password"
+                    />
                 </fieldset>
-                <button class="btn btn-lg btn-primary pull-xs-right" type="submit">"Update Settings"</button>
+                <button class="btn btn-lg btn-primary pull-xs-right" type="submit">
+                    "Update Settings"
+                </button>
             </fieldset>
         </ActionForm>
     }

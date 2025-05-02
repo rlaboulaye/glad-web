@@ -113,18 +113,20 @@ struct TokenQuery {
 pub fn ResetPassword() -> impl IntoView {
     let q = use_query::<TokenQuery>();
     view! {
-        <Title text="Reset Password"/>
+        <Title text="Reset Password" />
         <div class="auth-page">
             <div class="container page">
                 <div class="row">
-                    {q.with(|x| {
-                        if let Ok(token_query) = x {
-                            if let Some(token) = token_query.token.as_ref() {
-                                return view! {<ConfirmPassword token={token.to_string()}/>}.into_any()
+                    {q
+                        .with(|x| {
+                            if let Ok(token_query) = x {
+                                if let Some(token) = token_query.token.as_ref() {
+                                    return view! { <ConfirmPassword token=token.to_string() /> }
+                                        .into_any();
+                                }
                             }
-                        }
-                        view! {<AskForEmail/> }.into_any()
-                    })}
+                            view! { <AskForEmail /> }.into_any()
+                        })}
                 </div>
             </div>
         </div>
@@ -154,14 +156,16 @@ fn AskForEmail() -> impl IntoView {
         <div class="col-md-6 offset-md-3 col-xs-12">
             <h1 class="text-xs-center">"Reset password"</h1>
 
-            <p class="text-xs-center">
-                {error}
-            </p>
+            <p class="text-xs-center">{error}</p>
 
             <ActionForm action=reset>
                 <fieldset class="form-group">
-                    <input name="email" class="form-control form-control-lg" type="email"
-                        placeholder="Your Email" />
+                    <input
+                        name="email"
+                        class="form-control form-control-lg"
+                        type="email"
+                        placeholder="Your Email"
+                    />
                 </fieldset>
                 <button class="btn btn-lg btn-primary pull-xs-right">"Reset Password"</button>
             </ActionForm>
@@ -192,27 +196,36 @@ fn ConfirmPassword(token: String) -> impl IntoView {
         <div class="col-md-6 offset-md-3 col-xs-12">
             <h1 class="text-xs-center">"Reset password"</h1>
 
-            <p class="text-xs-center">
-                {error}
-            </p>
+            <p class="text-xs-center">{error}</p>
 
-            <ActionForm action=reset on:submit=move |ev| {
-                let Ok(data) = ResetPasswordAction2::from_event(&ev) else {
-                    return ev.prevent_default();
-                };
-                if !validate_reset(data.password, data.confirm) {
-                    result_of_call.set(Some(Ok(String::from("Password is not the same"))));
-                    ev.prevent_default();
+            <ActionForm
+                action=reset
+                on:submit=move |ev| {
+                    let Ok(data) = ResetPasswordAction2::from_event(&ev) else {
+                        return ev.prevent_default();
+                    };
+                    if !validate_reset(data.password, data.confirm) {
+                        result_of_call.set(Some(Ok(String::from("Password is not the same"))));
+                        ev.prevent_default();
+                    }
                 }
-            }>
+            >
                 <fieldset class="form-group">
-                    <input name="password" class="form-control form-control-lg" type="password"
-                        placeholder="Your new password" />
+                    <input
+                        name="password"
+                        class="form-control form-control-lg"
+                        type="password"
+                        placeholder="Your new password"
+                    />
 
-                    <input name="confirm" class="form-control form-control-lg" type="password"
-                        placeholder="Confirm your password" />
+                    <input
+                        name="confirm"
+                        class="form-control form-control-lg"
+                        type="password"
+                        placeholder="Confirm your password"
+                    />
 
-                    <input name="token" type="hidden" value={token} />
+                    <input name="token" type="hidden" value=token />
                 </fieldset>
                 <button class="btn btn-lg btn-primary pull-xs-right">"Reset Password"</button>
             </ActionForm>

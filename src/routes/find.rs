@@ -85,32 +85,35 @@ pub fn Find() -> impl IntoView {
     };
 
     view! {
-        <Title text="Find Controls"/>
+        <Title text="Find Controls" />
         <div class="find-page">
             <div class="container page">
                 <div class="row">
-                    <p class="text-xs-center"
+                    <p
+                        class="text-xs-center"
                         class:text-success=move || !error()
                         class:error-messages=error
                     >
                         <strong>
-                            {move || result.with(|x| {
-                                let Some(x) = x else {
-                                    return String::new();
-                                };
-                                match x {
-                                    Ok(FindResponse::ValidationError(x)) => {
-                                        format!("Problem while validating: {x}")
-                                    }
-                                    Ok(FindResponse::InsertError) => {
-                                        "Error while submitting the query, please, try again later".into()
-                                    }
-                                    Ok(FindResponse::Successful(_)) => {
-                                        String::new()
-                                    }
-                                    Err(x) => format!("Unexpected error: {x}"),
-                                }
-                            })}
+                            {move || {
+                                result
+                                    .with(|x| {
+                                        let Some(x) = x else {
+                                            return String::new();
+                                        };
+                                        match x {
+                                            Ok(FindResponse::ValidationError(x)) => {
+                                                format!("Problem while validating: {x}")
+                                            }
+                                            Ok(FindResponse::InsertError) => {
+                                                "Error while submitting the query, please, try again later"
+                                                    .into()
+                                            }
+                                            Ok(FindResponse::Successful(_)) => String::new(),
+                                            Err(x) => format!("Unexpected error: {x}"),
+                                        }
+                                    })
+                            }}
                         </strong>
                     </p>
 
@@ -118,48 +121,76 @@ pub fn Find() -> impl IntoView {
                         <ActionForm action=find_server_action>
                             <fieldset>
                                 <fieldset class="form-group">
-                                    <input name="description" type="text" class="form-control" minlength=DESCRIPTION_MIN_LENGTH
-                                        placeholder="Give a brief description of your project and need for additional controls." />
+                                    <input
+                                        name="description"
+                                        type="text"
+                                        class="form-control"
+                                        minlength=DESCRIPTION_MIN_LENGTH
+                                        placeholder="Give a brief description of your project and need for additional controls."
+                                    />
                                 </fieldset>
                                 <fieldset class="form-group">
-                                    <label for="self_described_latino">"Restrict search to self-described latinos only"</label>
-                                    <input name="self_described_latino" type="checkbox" class="form-control" value="on" />
+                                    <label for="self_described_latino">
+                                        "Restrict search to self-described latinos only"
+                                    </label>
+                                    <input
+                                        name="self_described_latino"
+                                        type="checkbox"
+                                        class="form-control"
+                                        value="on"
+                                    />
                                 </fieldset>
                                 <h3>"How many controls would you like to find?"</h3>
                                 <fieldset class="form-group">
-                                    <input name="n_controls" type="number" class="form-control" value=100 />
+                                    <input
+                                        name="n_controls"
+                                        type="number"
+                                        class="form-control"
+                                        value=100
+                                    />
                                 </fieldset>
                                 <h3>"Select cohorts to exclude from matching procedure:"</h3>
                                 <div class="selected-cohorts">
-                                    //
+                                    // 
                                     <div class="scrollable-container overflow-y-auto max-h-64">
-                                        <Suspense fallback=move || view! {<p>"Loading Cohorts"</p> }>
+                                        <Suspense fallback=move || {
+                                            view! { <p>"Loading Cohorts"</p> }
+                                        }>
                                             <ErrorBoundary fallback=|_| {
-                                                view! { <p class="error-messages text-xs-center">"Something went wrong."</p>}
-                                            }>
-                                                //view! {
-                                                {
-                                                    move || {
-                                                        cohorts_resource.get().map(move |cohorts_result| {
-                                                            cohorts_result.map(move |cohorts| {
-                                                                view! {
-                                                                    <For
-                                                                        each=move || cohorts.clone().into_iter().enumerate()
-                                                                        key=|(i, _)| *i
-                                                                        children=move |(_, cohort): (usize, Cohort)| {
-                                                                            view! {
-                                                                                <div class="checkbox-item">
-                                                                                    <input type="checkbox" value=cohort.cohort_name.clone() name="cohorts[]" />
-                                                                                    <label for="cohorts[]">{cohort.cohort_name.clone()}</label>
-                                                                                </div>
-                                                                            }
-                                                                        }
-                                                                    />
-                                                                }
-                                                            })
-                                                        })
-                                                    }
+                                                view! {
+                                                    <p class="error-messages text-xs-center">
+                                                        "Something went wrong."
+                                                    </p>
                                                 }
+                                            }>
+                                                // view! {
+                                                {move || {
+                                                    cohorts_resource
+                                                        .get()
+                                                        .map(move |cohorts_result| {
+                                                            cohorts_result
+                                                                .map(move |cohorts| {
+                                                                    view! {
+                                                                        <For
+                                                                            each=move || cohorts.clone().into_iter().enumerate()
+                                                                            key=|(i, _)| *i
+                                                                            children=move |(_, cohort): (usize, Cohort)| {
+                                                                                view! {
+                                                                                    <div class="checkbox-item">
+                                                                                        <input
+                                                                                            type="checkbox"
+                                                                                            value=cohort.cohort_name.clone()
+                                                                                            name="cohorts[]"
+                                                                                        />
+                                                                                        <label for="cohorts[]">{cohort.cohort_name.clone()}</label>
+                                                                                    </div>
+                                                                                }
+                                                                            }
+                                                                        />
+                                                                    }
+                                                                })
+                                                        })
+                                                }}
                                             </ErrorBoundary>
                                         </Suspense>
                                     </div>
