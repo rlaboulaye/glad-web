@@ -116,37 +116,21 @@ pub fn ResetPassword() -> impl IntoView {
         <Title text="Reset Password" />
         <div class="min-h-screen bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
             <div class="sm:mx-auto sm:w-full sm:max-w-md mt-20">
-                <h2 class="text-center text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
-                    Reset Password
-                </h2>
-
-                {q.with(|x| {
-                    if let Ok(token_query) = x {
-                        if let Some(token) = token_query.token.as_ref() {
-                            // Show ConfirmPassword if token is available
-                            return view! {
-                                <ConfirmPassword
-                                    token=token.to_string()
-                                    class:p-8=true
-                                    class:shadow-md=true
-                                    class:rounded-lg=true
-                                    class:space-y-6=true
-                                />
+                <div class="bg-white dark:bg-gray-800 p-8 shadow-md rounded-lg space-y-6">
+                    <h2 class="text-center text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
+                        Reset Password
+                    </h2>
+                    {q.with(|x| {
+                        if let Ok(token_query) = x {
+                            if let Some(token) = token_query.token.as_ref() {
+                                return view! {
+                                    <ConfirmPassword token=token.to_string() />
+                                }.into_any();
                             }
-                            .into_any();
                         }
-                    }
-                    // Otherwise, show AskForEmail form
-                    view! {
-                        <AskForEmail
-                            class:p-8=true
-                            class:shadow-md=true
-                            class:rounded-lg=true
-                            class:space-y-6=true
-                        />
-                    }
-                    .into_any()
-                })}
+                        view! { <AskForEmail /> }.into_any()
+                    })}
+                </div>
             </div>
         </div>
     }
@@ -171,50 +155,34 @@ fn AskForEmail() -> impl IntoView {
         })
     };
     view! {
-        <div class="sm:mx-auto sm:w-full sm:max-w-md mt-20">
-            <h1 class="text-center text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
-                Reset Password
-            </h1>
+        <p class="mt-2 text-center text-sm text-red-500">{error}</p>
+        <ActionForm action=reset class:space-y-6=true>
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Email
+                </label>
+                <input
+                    name="email"
+                    type="email"
+                    placeholder="Your Email"
+                    class="mt-1 mb-4 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
+                />
+            </div>
 
-            <p class="mt-2 text-center text-sm text-red-500">
-                {error}
-            </p>
-
-            <ActionForm
-                action=reset
-                class:p-8=true
-                class:shadow-md=true
-                class:rounded-lg=true
-                class:space-y-6=true
-            >
-                <div>
-                    <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Email
-                    </label>
-                    <input
-                        name="email"
-                        type="email"
-                        placeholder="Your Email"
-                        class="mt-1 mb-4 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
-                    />
-                </div>
-
-                <div>
-                    <button
-                        type="submit"
-                        class="w-full flex justify-center rounded-md border border-transparent bg-green-400 hover:bg-green-500 px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-offset-2"
-                    >
-                        Reset Password
-                    </button>
-                </div>
-            </ActionForm>
-        </div>
+            <div>
+                <button
+                    type="submit"
+                    class="w-full flex justify-center rounded-md border border-transparent bg-green-400 hover:bg-green-500 px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-offset-2"
+                >
+                    Reset Password
+                </button>
+            </div>
+        </ActionForm>
     }
 }
 
 #[component]
 fn ConfirmPassword(token: String) -> impl IntoView {
-    //let reset = create_server_action::<ResetPasswordAction2>();
     let reset: ServerAction<ResetPasswordAction2> = ServerAction::new();
     let result_of_call = reset.value();
 
@@ -232,42 +200,55 @@ fn ConfirmPassword(token: String) -> impl IntoView {
         })
     };
     view! {
-        <div class="col-md-6 offset-md-3 col-xs-12">
-            <h1 class="text-xs-center">"Reset password"</h1>
+        <p class="text-center text-sm text-red-500">{error}</p>
 
-            <p class="text-xs-center">{error}</p>
-
-            <ActionForm
-                action=reset
-                on:submit=move |ev| {
-                    let Ok(data) = ResetPasswordAction2::from_event(&ev) else {
-                        return ev.prevent_default();
-                    };
-                    if !validate_reset(data.password, data.confirm) {
-                        result_of_call.set(Some(Ok(String::from("Password is not the same"))));
-                        ev.prevent_default();
-                    }
+        <ActionForm
+            action=reset
+            class:space-y-6=true
+            on:submit=move |ev| {
+                let Ok(data) = ResetPasswordAction2::from_event(&ev) else {
+                    return ev.prevent_default();
+                };
+                if !validate_reset(data.password, data.confirm) {
+                    result_of_call.set(Some(Ok(String::from("Passwords do not match"))));
+                    ev.prevent_default();
                 }
-            >
-                <fieldset class="form-group">
-                    <input
-                        name="password"
-                        class="form-control form-control-lg"
-                        type="password"
-                        placeholder="Your new password"
-                    />
+            }
+        >
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    New Password
+                </label>
+                <input
+                    name="password"
+                    type="password"
+                    placeholder="New password"
+                    class="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
+                />
+            </div>
 
-                    <input
-                        name="confirm"
-                        class="form-control form-control-lg"
-                        type="password"
-                        placeholder="Confirm your password"
-                    />
+            <div>
+                <label for="confirm" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Confirm Password
+                </label>
+                <input
+                    name="confirm"
+                    type="password"
+                    placeholder="Confirm password"
+                    class="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
+                />
+            </div>
 
-                    <input name="token" type="hidden" value=token />
-                </fieldset>
-                <button class="btn btn-lg btn-primary pull-xs-right">"Reset Password"</button>
-            </ActionForm>
-        </div>
+            <input name="token" type="hidden" value=token />
+
+            <div>
+                <button
+                    type="submit"
+                    class="w-full flex justify-center rounded-md border border-transparent bg-green-400 hover:bg-green-500 px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-offset-2"
+                >
+                    Reset Password
+                </button>
+            </div>
+        </ActionForm>
     }
 }
