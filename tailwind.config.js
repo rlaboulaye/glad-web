@@ -10,6 +10,16 @@ export default {
       "./src/**/*.rs",
     ],
   },
+  safelist: [
+    "hover:underline",
+    "text-indigo-600",
+    "dark:text-indigo-400",
+    "p-8",
+    "shadow-md",
+    "rounded-lg",
+    "mt-8",
+    "space-y-6",
+  ],
   theme: {
     extend: {
       fontFamily: {

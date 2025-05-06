@@ -114,20 +114,39 @@ pub fn ResetPassword() -> impl IntoView {
     let q = use_query::<TokenQuery>();
     view! {
         <Title text="Reset Password" />
-        <div class="auth-page">
-            <div class="container page">
-                <div class="row">
-                    {q
-                        .with(|x| {
-                            if let Ok(token_query) = x {
-                                if let Some(token) = token_query.token.as_ref() {
-                                    return view! { <ConfirmPassword token=token.to_string() /> }
-                                        .into_any();
-                                }
+        <div class="min-h-screen bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+            <div class="sm:mx-auto sm:w-full sm:max-w-md mt-20">
+                <h2 class="text-center text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
+                    Reset Password
+                </h2>
+
+                {q.with(|x| {
+                    if let Ok(token_query) = x {
+                        if let Some(token) = token_query.token.as_ref() {
+                            // Show ConfirmPassword if token is available
+                            return view! {
+                                <ConfirmPassword
+                                    token=token.to_string()
+                                    class:p-8=true
+                                    class:shadow-md=true
+                                    class:rounded-lg=true
+                                    class:space-y-6=true
+                                />
                             }
-                            view! { <AskForEmail /> }.into_any()
-                        })}
-                </div>
+                            .into_any();
+                        }
+                    }
+                    // Otherwise, show AskForEmail form
+                    view! {
+                        <AskForEmail
+                            class:p-8=true
+                            class:shadow-md=true
+                            class:rounded-lg=true
+                            class:space-y-6=true
+                        />
+                    }
+                    .into_any()
+                })}
             </div>
         </div>
     }
@@ -135,7 +154,6 @@ pub fn ResetPassword() -> impl IntoView {
 
 #[component]
 fn AskForEmail() -> impl IntoView {
-    //let reset = create_server_action::<ResetPasswordAction1>();
     let reset: ServerAction<ResetPasswordAction1> = ServerAction::new();
     let result_of_call = reset.value();
 
@@ -153,21 +171,42 @@ fn AskForEmail() -> impl IntoView {
         })
     };
     view! {
-        <div class="col-md-6 offset-md-3 col-xs-12">
-            <h1 class="text-xs-center">"Reset password"</h1>
+        <div class="sm:mx-auto sm:w-full sm:max-w-md mt-20">
+            <h1 class="text-center text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
+                Reset Password
+            </h1>
 
-            <p class="text-xs-center">{error}</p>
+            <p class="mt-2 text-center text-sm text-red-500">
+                {error}
+            </p>
 
-            <ActionForm action=reset>
-                <fieldset class="form-group">
+            <ActionForm
+                action=reset
+                class:p-8=true
+                class:shadow-md=true
+                class:rounded-lg=true
+                class:space-y-6=true
+            >
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Email
+                    </label>
                     <input
                         name="email"
-                        class="form-control form-control-lg"
                         type="email"
                         placeholder="Your Email"
+                        class="mt-1 mb-4 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
                     />
-                </fieldset>
-                <button class="btn btn-lg btn-primary pull-xs-right">"Reset Password"</button>
+                </div>
+
+                <div>
+                    <button
+                        type="submit"
+                        class="w-full flex justify-center rounded-md border border-transparent bg-green-400 hover:bg-green-500 px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-offset-2"
+                    >
+                        Reset Password
+                    </button>
+                </div>
             </ActionForm>
         </div>
     }
