@@ -1,6 +1,6 @@
+use leptoaster::expect_toaster;
 use leptos::prelude::*;
 use leptos_meta::*;
-use leptos_toaster::{Toaster, ToasterPosition};
 
 use serde::{Deserialize, Serialize};
 
@@ -98,39 +98,73 @@ pub fn Settings(logout: crate::auth::LogoutSignal) -> impl IntoView {
     view! {
         <Title text="Settings" />
 
-        <div class="settings-page">
-            <div class="container page">
-                <div class="row">
-                    <div class="col-md-6 offset-md-3 col-xs-12">
-                        <h1 class="text-xs-center">"Profile Settings"</h1>
+        <div class="min-h-screen bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-md w-full mx-auto mt-10">
+                <h1 class="text-center text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">
+                    "Profile Settings"
+                </h1>
 
-                        <Suspense fallback=move || view! { <p>"Loading user settings"</p> }>
-                            <ErrorBoundary fallback=|_| {
-                                view! {
-                                    <p>
-                                        "There was a problem while fetching settings, try again later"
-                                    </p>
-                                }
-                            }>
-                                {move || {
-                                    resource
-                                        .get()
-                                        .map(move |x| {
-                                            x.map(move |user| view! { <SettingsViewForm user /> })
-                                        })
-                                }}
-                            </ErrorBoundary>
-                        </Suspense>
-                        <hr />
-                        <ActionForm action=logout>
-                            <button type="submit" class="btn btn-outline-danger">
-                                "Or click here to logout."
-                            </button>
-                        </ActionForm>
-                    </div>
-                </div>
+                <Suspense fallback=move || view! { <p class="text-center text-gray-600 dark:text-gray-400">"Loading user settings..."</p> }>
+                    <ErrorBoundary fallback=|_| {
+                        view! {
+                            <p class="text-center text-red-500">
+                                "There was a problem while fetching settings, try again later"
+                            </p>
+                        }
+                    }>
+                        {move || {
+                            resource
+                                .get()
+                                .map(move |x| {
+                                    x.map(move |user| view! { <SettingsViewForm user /> })
+                                })
+                        }}
+                    </ErrorBoundary>
+                </Suspense>
+
+                <hr class="my-8 border-gray-300 dark:border-gray-700"/>
+
+                <ActionForm action=logout>
+                    <button type="submit" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg">
+                        "Logout"
+                    </button>
+                </ActionForm>
             </div>
         </div>
+
+        // <div class="settings-page">
+        //     <div class="container page">
+        //         <div class="row">
+        //             <div class="col-md-6 offset-md-3 col-xs-12">
+        //                 <h1 class="text-xs-center">"Profile Settings"</h1>
+        //
+        //                 <Suspense fallback=move || view! { <p>"Loading user settings"</p> }>
+        //                     <ErrorBoundary fallback=|_| {
+        //                         view! {
+        //                             <p>
+        //                                 "There was a problem while fetching settings, try again later"
+        //                             </p>
+        //                         }
+        //                     }>
+        //                         {move || {
+        //                             resource
+        //                                 .get()
+        //                                 .map(move |x| {
+        //                                     x.map(move |user| view! { <SettingsViewForm user /> })
+        //                                 })
+        //                         }}
+        //                     </ErrorBoundary>
+        //                 </Suspense>
+        //                 <hr />
+        //                 <ActionForm action=logout>
+        //                     <button type="submit" class="btn btn-outline-danger">
+        //                         "Or click here to logout."
+        //                     </button>
+        //                 </ActionForm>
+        //             </div>
+        //         </div>
+        //     </div>
+        // </div>
     }
 }
 
@@ -139,83 +173,132 @@ pub fn SettingsViewForm(user: User) -> impl IntoView {
     let settings_action: ServerAction<SettingsUpdateAction> = ServerAction::new();
     let result = settings_action.value();
 
-    // Use updated Effect API
     Effect::new(move |_| {
         if let Some(res) = result.get() {
+            let toaster = expect_toaster();
             match res {
                 Ok(SettingsUpdateError::Successful) => {
-                    toast!(info, "✅ Settings updated successfully!");
+                    toaster.success("Settings updated successfully");
                 }
                 Ok(SettingsUpdateError::PasswordsNotMatch) => {
-                    toast!(error, "❌ Passwords do not match.");
+                    toaster.error("Passwords do not match");
                 }
                 Ok(SettingsUpdateError::ValidationError(msg)) => {
-                    toast!(error, format!("❌ Validation error: {msg}"));
+                    toaster.error(format!("Validation error: {msg}"));
                 }
                 Err(e) => {
-                    toast!(error, format!("❌ Server error: {e}"));
+                    toaster.error(format!("Server error: {e}"));
                 }
             }
         }
     });
 
     view! {
-        <>
-            // Render toaster here *only* if your layout doesn’t already include it globally
-            <Toaster position=ToasterPosition::BottomCenter />
+        <ActionForm action=settings_action class:space-y-6=true>
+            <div class="space-y-4">
+                <input
+                    disabled
+                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+                    type="text"
+                    placeholder="Your Name"
+                    value=user.username()
+                />
+            </div>
 
-            <ActionForm action=settings_action>
-                <fieldset>
-                    <div class="form-group">
-                        <input
-                            disabled
-                            class="form-control form-control-lg"
-                            type="text"
-                            placeholder="Your Name"
-                            value=user.username()
-                        />
-                    </div>
+            <div class="space-y-4">
+                <textarea
+                    name="bio"
+                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+                    rows="5"
+                    placeholder="Short bio about you"
+                    prop:value=user.bio().unwrap_or_default()
+                ></textarea>
+            </div>
 
-                    <div class="form-group">
-                        <textarea
-                            name="bio"
-                            class="form-control form-control-lg"
-                            rows="8"
-                            placeholder="Short bio about you"
-                            prop:value=user.bio().unwrap_or_default()
-                        ></textarea>
-                    </div>
+            <div class="space-y-4">
+                <input
+                    name="email"
+                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+                    type="text"
+                    placeholder="Email"
+                    value=user.email()
+                />
+            </div>
 
-                    <div class="form-group">
-                        <input
-                            name="email"
-                            class="form-control form-control-lg"
-                            type="text"
-                            placeholder="Email"
-                            value=user.email()
-                        />
-                    </div>
+            <div class="space-y-4">
+                <input
+                    name="password"
+                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+                    type="password"
+                    placeholder="New Password"
+                />
+                <input
+                    name="confirm_password"
+                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+                    type="password"
+                    placeholder="Confirm New Password"
+                />
+            </div>
 
-                    <div class="form-group">
-                        <input
-                            name="password"
-                            class="form-control form-control-lg"
-                            type="password"
-                            placeholder="New Password"
-                        />
-                        <input
-                            name="confirm_password"
-                            class="form-control form-control-lg"
-                            type="password"
-                            placeholder="Confirm New Password"
-                        />
-                    </div>
+            <button
+                type="submit"
+                class="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg"
+            >
+                "Update Settings"
+            </button>
+        </ActionForm>
 
-                    <button class="btn btn-lg btn-primary pull-xs-right" type="submit">
-                        "Update Settings"
-                    </button>
-                </fieldset>
-            </ActionForm>
-        </>
+        // <ActionForm action=settings_action>
+        //     <fieldset>
+        //         <div class="form-group">
+        //             <input
+        //                 disabled
+        //                 class="form-control form-control-lg"
+        //                 type="text"
+        //                 placeholder="Your Name"
+        //                 value=user.username()
+        //             />
+        //         </div>
+        //
+        //         <div class="form-group">
+        //             <textarea
+        //                 name="bio"
+        //                 class="form-control form-control-lg"
+        //                 rows="8"
+        //                 placeholder="Short bio about you"
+        //                 prop:value=user.bio().unwrap_or_default()
+        //             ></textarea>
+        //         </div>
+        //
+        //         <div class="form-group">
+        //             <input
+        //                 name="email"
+        //                 class="form-control form-control-lg"
+        //                 type="text"
+        //                 placeholder="Email"
+        //                 value=user.email()
+        //             />
+        //         </div>
+        //
+        //         <div class="form-group">
+        //             <input
+        //                 name="password"
+        //                 class="form-control form-control-lg"
+        //                 type="password"
+        //                 placeholder="New Password"
+        //             />
+        //             <input
+        //                 name="confirm_password"
+        //                 class="form-control form-control-lg"
+        //                 type="password"
+        //                 placeholder="Confirm New Password"
+        //             />
+        //         </div>
+        //
+        //         <button class="btn btn-lg btn-primary pull-xs-right" type="submit">
+        //             "Update Settings"
+        //         </button>
+        //     </fieldset>
+        // </ActionForm>
     }
 }

@@ -1,3 +1,4 @@
+use leptoaster::{provide_toaster, Toaster};
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
@@ -55,6 +56,8 @@ pub fn App() -> impl IntoView {
         },
     );
 
+    provide_toaster();
+
     view! {
         // injects a stylesheet into the document <head>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
@@ -62,6 +65,9 @@ pub fn App() -> impl IntoView {
 
         // sets the document title
         <Title text="GLAD" />
+
+        // displays messages to user
+        <Toaster />
 
         // content for this welcome page
         <Router>

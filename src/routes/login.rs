@@ -1,3 +1,4 @@
+use leptoaster::expect_toaster;
 use leptos::prelude::*;
 use leptos_meta::*;
 use leptos_router::components::*;
@@ -6,25 +7,43 @@ use crate::auth::{LoginMessages, LoginSignal};
 
 #[component]
 pub fn Login(login: LoginSignal) -> impl IntoView {
-    let result_of_call = login.value();
+    let result = login.value();
 
-    let error = move || {
-        result_of_call.with(|msg| {
-            msg.as_ref()
-                .map(|inner| match inner {
-                    Ok(LoginMessages::Unsuccessful) => "Incorrect user or password",
-                    Ok(LoginMessages::Successful) => {
-                        tracing::info!("login success!");
-                        "Done"
-                    }
-                    Err(x) => {
-                        tracing::error!("Problem during login: {x:?}");
-                        "There was a problem, try again later"
-                    }
-                })
-                .unwrap_or_default()
-        })
-    };
+    // let error = move || {
+    //     result_of_call.with(|msg| {
+    //         msg.as_ref()
+    //             .map(|inner| match inner {
+    //                 Ok(LoginMessages::Unsuccessful) => "Incorrect user or password",
+    //                 Ok(LoginMessages::Successful) => {
+    //                     tracing::info!("login success!");
+    //                     "Done"
+    //                 }
+    //                 Err(x) => {
+    //                     tracing::error!("Problem during login: {x:?}");
+    //                     "There was a problem, try again later"
+    //                 }
+    //             })
+    //             .unwrap_or_default()
+    //     })
+    // };
+    Effect::new(move |_| {
+        if let Some(res) = result.get() {
+            let toaster = expect_toaster();
+            match res {
+                Ok(LoginMessages::Successful) => {
+                    tracing::info!("Login successful");
+                    toaster.success("Login successful");
+                }
+                Ok(LoginMessages::Unsuccessful) => {
+                    toaster.error("Incorrect user or password");
+                }
+                Err(e) => {
+                    tracing::error!("Problem during login: {e:?}");
+                    toaster.error(format!("Internal error, try again later"));
+                }
+            }
+        }
+    });
 
     view! {
     <Title text="Login" />
@@ -34,9 +53,6 @@ pub fn Login(login: LoginSignal) -> impl IntoView {
                 Login
             </h2>
 
-            <p class="mt-2 text-center text-sm text-red-500">
-                {error}
-            </p>
             <ActionForm
                 action=login
                 class:p-8=true
