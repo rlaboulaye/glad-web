@@ -39,8 +39,8 @@ pub fn Signup(signup: SignupSignal) -> impl IntoView {
                 <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
                     <A
                         href="/login"
-                        class:text-indigo-600=true
-                        class:dark:text-indigo-400=true
+                        class:text-green-400=true
+                        class:dark:text-green-300=true
                         class:hover:underline=true
                     >
                         Have an account?

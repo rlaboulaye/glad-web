@@ -72,8 +72,8 @@ pub fn Login(login: LoginSignal) -> impl IntoView {
                 <div class="flex justify-between items-center text-sm mb-4">
                     <A
                         href="/reset_password"
-                        class:text-indigo-600=true
-                        class:dark:text-indigo-400=true
+                        class:text-green-400=true
+                        class:dark:text-green-300=true
                         class:hover:underline=true
                     >
                         Reset password

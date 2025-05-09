@@ -12,8 +12,8 @@ export default {
   },
   safelist: [
     "hover:underline",
-    "text-indigo-600",
-    "dark:text-indigo-400",
+    "text-green-400",
+    "dark:text-green-300",
     "p-8",
     "shadow-md",
     "rounded-lg",

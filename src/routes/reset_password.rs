@@ -40,7 +40,7 @@ pub async fn reset_password_1(email: String) -> Result<String, ServerFnError> {
         let uri = format!("{}://{}/reset_password?token={}", schema, host, token);
         // Build a simple multipart message
         let message = mail_send::mail_builder::MessageBuilder::new()
-            .from(("Realworld Leptos", creds.email.as_str()))
+            .from(("GLADdb", creds.email.as_str()))
             .to(vec![("GLADdb", email.as_str())])
             .subject("Your password reset from GLADdb")
             .text_body(format!(
