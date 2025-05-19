@@ -194,55 +194,115 @@ pub fn SettingsViewForm(user: User) -> impl IntoView {
     });
 
     view! {
-        <ActionForm action=settings_action class:space-y-6=true>
-            <div class="space-y-4">
+        <ActionForm
+            action=settings_action
+            class:p-8=true
+            class:shadow-md=true
+            class:rounded-lg=true
+            class:mt-8=true
+            class:space-y-6=true
+        >
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Username
+                </label>
                 <input
                     disabled
-                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
                     type="text"
-                    placeholder="Your Name"
+                    placeholder="Your Username"
                     value=user.username()
+                    class="mt-1 mb-4 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
                 />
             </div>
+            // <div class="space-y-4">
+            //     <input
+            //         disabled
+            //         class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+            //         type="text"
+            //         placeholder="Your Name"
+            //         value=user.username()
+            //     />
+            // </div>
 
-            <div class="space-y-4">
+            <div>
+                <label for="bio" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Bio
+                </label>
                 <textarea
                     name="bio"
-                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
                     rows="5"
-                    placeholder="Short bio about you"
+                    placeholder="Short bio about you and your work"
                     prop:value=user.bio().unwrap_or_default()
+                    class="mt-1 mb-4 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
                 ></textarea>
             </div>
+            // <div class="space-y-4">
+            //     <textarea
+            //         name="bio"
+            //         class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+            //         rows="5"
+            //         placeholder="Short bio about you"
+            //         prop:value=user.bio().unwrap_or_default()
+            //     ></textarea>
+            // </div>
 
-            <div class="space-y-4">
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Email
+                </label>
                 <input
                     name="email"
-                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
                     type="text"
                     placeholder="Email"
                     value=user.email()
+                    class="mt-1 mb-4 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
                 />
             </div>
+            // <div class="space-y-4">
+            //     <input
+            //         name="email"
+            //         class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+            //         type="text"
+            //         placeholder="Email"
+            //         value=user.email()
+            //     />
+            // </div>
 
-            <div class="space-y-4">
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Password
+                </label>
                 <input
                     name="password"
-                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
                     type="password"
                     placeholder="New Password"
+                    class="mt-1 mb-4 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
                 />
                 <input
                     name="confirm_password"
-                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
                     type="password"
-                    placeholder="Confirm New Password"
+                    placeholder="Confirm Password"
+                    class="mt-1 mb-4 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
                 />
             </div>
+            // <div class="space-y-4">
+            //     <input
+            //         name="password"
+            //         class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+            //         type="password"
+            //         placeholder="New Password"
+            //     />
+            //     <input
+            //         name="confirm_password"
+            //         class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 shadow-sm"
+            //         type="password"
+            //         placeholder="Confirm New Password"
+            //     />
+            // </div>
 
             <button
                 type="submit"
-                class="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg"
+                class="w-full flex justify-center rounded-md border border-transparent bg-green-400 hover:bg-green-500 px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-offset-2"
             >
                 "Update Settings"
             </button>

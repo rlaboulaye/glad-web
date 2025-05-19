@@ -116,21 +116,20 @@ pub fn ResetPassword() -> impl IntoView {
         <Title text="Reset Password" />
         <div class="min-h-screen bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
             <div class="sm:mx-auto sm:w-full sm:max-w-md mt-20">
-                <div class="bg-white dark:bg-gray-800 p-8 shadow-md rounded-lg space-y-6">
-                    <h2 class="text-center text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
-                        Reset Password
-                    </h2>
-                    {q.with(|x| {
-                        if let Ok(token_query) = x {
-                            if let Some(token) = token_query.token.as_ref() {
-                                return view! {
-                                    <ConfirmPassword token=token.to_string() />
-                                }.into_any();
-                            }
+                <h2 class="text-center text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
+                    Reset Password
+                </h2>
+
+                {q.with(|x| {
+                    if let Ok(token_query) = x {
+                        if let Some(token) = token_query.token.as_ref() {
+                            return view! {
+                                <ConfirmPassword token=token.to_string() />
+                            }.into_any();
                         }
-                        view! { <AskForEmail /> }.into_any()
-                    })}
-                </div>
+                    }
+                    view! { <AskForEmail /> }.into_any()
+                })}
             </div>
         </div>
     }
@@ -156,7 +155,14 @@ fn AskForEmail() -> impl IntoView {
     };
     view! {
         <p class="mt-2 text-center text-sm text-red-500">{error}</p>
-        <ActionForm action=reset class:space-y-6=true>
+        <ActionForm
+            action=reset
+            class:p-8=true
+            class:shadow-md=true
+            class:rounded-lg=true
+            class:mt-8=true
+            class:space-y-6=true
+        >
             <div>
                 <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Email
@@ -204,6 +210,10 @@ fn ConfirmPassword(token: String) -> impl IntoView {
 
         <ActionForm
             action=reset
+            class:p-8=true
+            class:shadow-md=true
+            class:rounded-lg=true
+            class:mt-8=true
             class:space-y-6=true
             on:submit=move |ev| {
                 let Ok(data) = ResetPasswordAction2::from_event(&ev) else {
