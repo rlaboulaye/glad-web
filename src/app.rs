@@ -76,8 +76,12 @@ pub fn App() -> impl IntoView {
             }>
                 {move || {
                     user.get()
-                        .map(move |x| {
-                            username.set(x.map(|y| y.username()).ok());
+                        .map(move |current_user_result| {
+                            match current_user_result {
+                                Ok(Some(u)) => username.set(Some(u.username())),
+                                Ok(None) => username.set(None),
+                                Err(e) => tracing::debug!("Internal Error: {}", e),
+                            }
                             view! { <NavItems logout username /> }
                         })
                 }}

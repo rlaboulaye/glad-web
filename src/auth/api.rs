@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::models::User;
+
 #[derive(serde::Deserialize, Clone, serde::Serialize)]
 pub enum SignupResponse {
     ValidationError(String),
@@ -13,8 +15,8 @@ pub fn validate_signup(
     bio: String,
     email: String,
     password: String,
-) -> Result<crate::models::User, String> {
-    crate::models::User::default()
+) -> Result<User, String> {
+    User::default()
         .set_username(username)?
         .set_bio(bio)?
         .set_password(password)?
@@ -99,12 +101,12 @@ pub async fn logout_action() -> Result<(), ServerFnError> {
 
 #[server(CurrentUserAction, "/api")]
 #[tracing::instrument]
-pub async fn current_user() -> Result<crate::models::User, ServerFnError> {
+pub async fn current_user() -> Result<Option<User>, ServerFnError> {
     let Some(logged_user) = super::get_username() else {
-        return Err(ServerFnError::ServerError("you must be logged in".into()));
+        return Ok(None);
     };
-    crate::models::User::get(logged_user).await.map_err(|err| {
+    User::get(logged_user).await.map(Some).map_err(|err| {
         tracing::error!("problem while retrieving current_user: {err:?}");
-        ServerFnError::ServerError("you must be logged in".into())
+        ServerFnError::Request("failed to load user from database".into())
     })
 }
