@@ -188,7 +188,7 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                                     //        tabindex="-1"
                                     //        id="user-menu-item-1"
                                     //    >
-                                    //        Sign out
+                                    //        Logout
                                     //    </button>
                                     //</ActionForm>
                                 </div>
