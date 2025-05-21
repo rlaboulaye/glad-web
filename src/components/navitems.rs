@@ -2,19 +2,50 @@ use crate::auth::*;
 use leptos::prelude::*;
 use leptos_router::{components::*, hooks::use_location};
 
-#[component]
-fn NavLink(href: &'static str, mobile: bool, children: Children) -> impl IntoView {
-    let location = use_location();
-    let is_active = move || location.pathname.get().starts_with(href);
+#[derive(Clone, PartialEq)]
+enum MenuID {
+    User,
+    Mobile,
+}
 
+// #[component]
+// fn MobileMenu(
+//     active_menu: RwSignal<Option<MenuID>>,
+//     username: UsernameSignal,
+//     pathname: &Signal<String>,
+// ) -> impl IntoView {
+//     let class = move || match active_menu.get() {
+//         Some(MenuID::Mobile) => "sm:hidden",
+//         _ => "sm:block",
+//     };
+//     view! {
+//         <div class=class id="mobile-menu">
+//             <div class="space-y-1 px-2 pb-3 pt-2">
+//                 <Show when=move || username.with(Option::is_none) fallback=move || {
+//                     view! {
+//                         <NavLink href="/dashboard" mobile={ true } pathname=pathname> "Dashboard" </NavLink>
+//                         <NavLink href="/find" mobile={ true } pathname=pathname> "Find Controls" </NavLink>
+//                     }
+//                 }>
+//                     <NavLink href="/signup" mobile={ true } pathname=pathname> "Sign up" </NavLink>
+//                     <NavLink href="/login" mobile={ true } pathname=pathname> "Login" </NavLink>
+//                 </Show>
+//                 <NavLink href="/explore" mobile={ true } pathname=pathname> "Explore" </NavLink>
+//             </div>
+//         </div>
+//     }
+// }
+
+#[component]
+fn NavLink(href: &'static str, mobile: bool, active: bool, children: Children) -> impl IntoView {
     let mut class_prefix = String::from("rounded-md px-3 py-2 font-medium");
     class_prefix.push_str(if mobile {
         " block text-base"
     } else {
         " text-sm"
     });
-    let class = move || {
-        if is_active() {
+    let class = {
+        if active {
             format!("{} bg-gray-900 text-white", class_prefix)
         } else {
             format!(
@@ -26,7 +57,7 @@ fn NavLink(href: &'static str, mobile: bool, children: Children) -> impl IntoVie
 
     view! {
         <A href=href>
-            <div class=class aria-current=move || if is_active() { Some("page") } else { None }>
+            <div class=class aria-current=move || if active { Some("page") } else { None }>
                 { children() }
             </div>
         </A>
@@ -36,6 +67,18 @@ fn NavLink(href: &'static str, mobile: bool, children: Children) -> impl IntoVie
 #[component]
 pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl IntoView {
     let profile_label = move || username.get().unwrap_or_default();
+    let location = use_location();
+    let is_active = move |href| location.pathname.get().starts_with(href);
+    // let active_menu: RwSignal<Option<MenuID>> = RwSignal::new(None);
+    // let toggle_menu = move |menu_id: MenuID| {
+    //     active_menu.update(move |current| {
+    //         if *current == Some(menu_id.clone()) {
+    //             *current = None;
+    //         } else {
+    //             *current = Some(menu_id);
+    //         }
+    //     });
+    // };
 
     view! {
         <nav class="bg-gray-800">
@@ -45,6 +88,7 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                         // <!-- Mobile menu button-->
                         <button
                             type="button"
+                            // on:click= move |_| toggle_menu(MenuID::Mobile)
                             class="relative inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
                             aria-controls="mobile-menu"
                             aria-expanded="false"
@@ -105,14 +149,14 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                             <div class="flex space-x-4">
                                 <Show when=move || username.with(Option::is_none) fallback=move || {
                                     view! {
-                                        <NavLink href="/dashboard" mobile={ false }> "Dashboard" </NavLink>
-                                        <NavLink href="/find" mobile={ false }> "Find Controls" </NavLink>
+                                        <NavLink href="/dashboard" mobile={ false } active=is_active("/dashboard")> "Dashboard" </NavLink>
+                                        <NavLink href="/find" mobile={ false } active=is_active("/find")> "Find Controls" </NavLink>
                                     }
                                 }>
-                                    <NavLink href="/signup" mobile={ false }> "Sign up" </NavLink>
-                                    <NavLink href="/login" mobile={ false }> "Login" </NavLink>
+                                    <NavLink href="/signup" mobile={ false } active=is_active("/signup")> "Sign up" </NavLink>
+                                    <NavLink href="/login" mobile={ false } active=is_active("/login")> "Login" </NavLink>
                                 </Show>
-                                <NavLink href="/explore" mobile={ false }> "Explore" </NavLink>
+                                <NavLink href="/explore" mobile={ false } active=is_active("/explore")> "Explore" </NavLink>
                             </div>
                         </div>
                     </div>
@@ -197,21 +241,21 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                 </div>
             </div>
             // <!-- Mobile menu, show/hide based on menu state. -->
-            <div class="sm:hidden" id="mobile-menu">
-                <div class="space-y-1 px-2 pb-3 pt-2">
-                    // <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
-                    <Show when=move || username.with(Option::is_none) fallback=move || {
-                        view! {
-                            <NavLink href="/dashboard" mobile={ true }> "Dashboard" </NavLink>
-                            <NavLink href="/find" mobile={ true }> "Find Controls" </NavLink>
-                        }
-                    }>
-                        <NavLink href="/signup" mobile={ true }> "Sign up" </NavLink>
-                        <NavLink href="/login" mobile={ true }> "Login" </NavLink>
-                    </Show>
-                    <NavLink href="/explore" mobile={ true }> "Explore" </NavLink>
-                </div>
-            </div>
+            // <MobileMenu active_menu=active_menu username=username pathname=pathname />
+            // <div class="sm:hidden" id="mobile-menu">
+            //     <div class="space-y-1 px-2 pb-3 pt-2">
+            //         <Show when=move || username.with(Option::is_none) fallback=move || {
+            //             view! {
+            //                 <NavLink href="/dashboard" mobile={ true } pathname=pathname.clone()> "Dashboard" </NavLink>
+            //                 <NavLink href="/find" mobile={ true } pathname=pathname.clone()> "Find Controls" </NavLink>
+            //             }
+            //         }>
+            //             <NavLink href="/signup" mobile={ true } pathname=pathname.clone()> "Sign up" </NavLink>
+            //             <NavLink href="/login" mobile={ true } pathname=pathname.clone()> "Login" </NavLink>
+            //         </Show>
+            //         <NavLink href="/explore" mobile={ true } pathname=pathname.clone()> "Explore" </NavLink>
+            //     </div>
+            // </div>
         </nav>
     }
 }
