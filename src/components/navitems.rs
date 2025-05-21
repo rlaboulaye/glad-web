@@ -1,11 +1,41 @@
 use crate::auth::*;
 use leptos::prelude::*;
-use leptos_router::components::*;
+use leptos_router::{components::*, hooks::use_location};
+
+#[component]
+fn NavLink(href: &'static str, mobile: bool, children: Children) -> impl IntoView {
+    let location = use_location();
+    let is_active = move || location.pathname.get().starts_with(href);
+
+    let mut class_prefix = String::from("rounded-md px-3 py-2 font-medium");
+    class_prefix.push_str(if mobile {
+        " block text-base"
+    } else {
+        " text-sm"
+    });
+    let class = move || {
+        if is_active() {
+            format!("{} bg-gray-900 text-white", class_prefix)
+        } else {
+            format!(
+                "{} text-gray-300 hover:bg-gray-700 hover:text-white",
+                class_prefix
+            )
+        }
+    };
+
+    view! {
+        <A href=href>
+            <div class=class aria-current=move || if is_active() { Some("page") } else { None }>
+                { children() }
+            </div>
+        </A>
+    }
+}
 
 #[component]
 pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl IntoView {
     let profile_label = move || username.get().unwrap_or_default();
-    let profile_href = move || format!("/profile/{}", profile_label());
 
     view! {
         <nav class="bg-gray-800">
@@ -75,34 +105,14 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                             <div class="flex space-x-4">
                                 <Show when=move || username.with(Option::is_none) fallback=move || {
                                     view! {
-                                        <A href=profile_href>
-                                            <div class="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white" aria-current="page">
-                                                Dashboard
-                                            </div>
-                                        </A>
-                                        <A href="/find">
-                                            <div class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
-                                                Find Controls
-                                            </div>
-                                        </A>
+                                        <NavLink href="/dashboard" mobile={ false }> "Dashboard" </NavLink>
+                                        <NavLink href="/find" mobile={ false }> "Find Controls" </NavLink>
                                     }
                                 }>
-                                    <A href="/signup">
-                                        <div class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
-                                            Sign up
-                                        </div>
-                                    </A>
-                                    <A href="/login">
-                                        <div class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
-                                            Login
-                                        </div>
-                                    </A>
+                                    <NavLink href="/signup" mobile={ false }> "Sign up" </NavLink>
+                                    <NavLink href="/login" mobile={ false }> "Login" </NavLink>
                                 </Show>
-                                <A href="/explore">
-                                    <div class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
-                                        Explore
-                                    </div>
-                                </A>
+                                <NavLink href="/explore" mobile={ false }> "Explore" </NavLink>
                             </div>
                         </div>
                     </div>
@@ -192,34 +202,14 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                     // <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
                     <Show when=move || username.with(Option::is_none) fallback=move || {
                         view! {
-                            <A href=profile_href>
-                                <div class="block rounded-md bg-gray-900 px-3 py-2 text-base font-medium text-white" aria-current="page">
-                                    Dashboard
-                                </div>
-                            </A>
-                            <A href="/find">
-                                <div class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
-                                    Find Controls
-                                </div>
-                            </A>
+                            <NavLink href="/dashboard" mobile={ true }> "Dashboard" </NavLink>
+                            <NavLink href="/find" mobile={ true }> "Find Controls" </NavLink>
                         }
                     }>
-                        <A href="/signup">
-                            <div class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
-                                Sign up
-                            </div>
-                        </A>
-                        <A href="/login">
-                            <div class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
-                                Login
-                            </div>
-                        </A>
+                        <NavLink href="/signup" mobile={ true }> "Sign up" </NavLink>
+                        <NavLink href="/login" mobile={ true }> "Login" </NavLink>
                     </Show>
-                    <A href="/explore">
-                        <div class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
-                            Explore
-                        </div>
-                    </A>
+                    <NavLink href="/explore" mobile={ true }> "Explore" </NavLink>
                 </div>
             </div>
         </nav>
