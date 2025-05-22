@@ -37,6 +37,22 @@ enum MenuID {
 // }
 
 #[component]
+fn MobileMenu(active_menu: RwSignal<Option<MenuID>>, username: UsernameSignal) -> impl IntoView {
+    let class = move || {
+        if active_menu.get() == Some(MenuID::Mobile) {
+            "block"
+        } else {
+            "hidden"
+        }
+    };
+    view! {
+        <div class=class>
+            "MOBILE MENU"
+        </div>
+    }
+}
+
+#[component]
 fn UserMenu(active_menu: RwSignal<Option<MenuID>>, logout: LogoutSignal) -> impl IntoView {
     let class_styling = String::from("absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5 focus:outline-none");
     let class = move || {
@@ -125,6 +141,12 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
 
     view! {
         <nav class="bg-gray-800">
+            <button
+                type="button"
+                on:click= move |_| toggle_menu(MenuID::Mobile)
+            >
+                "Another Button"
+            </button>
             <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
                 <div class="relative flex h-16 items-center justify-between">
                     <div class="absolute inset-y-0 left-0 flex items-center sm:hidden">
@@ -257,7 +279,7 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                 </div>
             </div>
             // <!-- Mobile menu, show/hide based on menu state. -->
-            // <MobileMenu active_menu=active_menu username=username pathname=pathname />
+            <MobileMenu active_menu=active_menu username=username />
             // <div class="sm:hidden" id="mobile-menu">
             //     <div class="space-y-1 px-2 pb-3 pt-2">
             //         <Show when=move || username.with(Option::is_none) fallback=move || {
