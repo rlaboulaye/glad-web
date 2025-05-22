@@ -37,6 +37,49 @@ enum MenuID {
 // }
 
 #[component]
+fn UserMenu(active_menu: RwSignal<Option<MenuID>>, logout: LogoutSignal) -> impl IntoView {
+    let class_styling = String::from("absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5 focus:outline-none");
+    let class = move || {
+        if active_menu.get() == Some(MenuID::User) {
+            format!("block {}", class_styling)
+        } else {
+            format!("hidden {}", class_styling)
+        }
+    };
+    view! {
+        <div
+            class=class
+            role="menu"
+            aria-orientation="vertical"
+            aria-labelledby="user-menu-button"
+            tabindex="-1"
+        >
+            // <!-- Active: "bg-gray-100 outline-none", Not Active: "" -->
+            <A href="/settings">
+                <div
+                    class="block px-4 py-2 text-sm text-gray-700"
+                    role="menuitem"
+                    tabindex="-1"
+                    id="user-menu-item-0"
+                >
+                    Settings
+                </div>
+            </A>
+            <ActionForm action=logout>
+               <button
+                   class="block px-4 py-2 text-sm text-gray-700"
+                   role="menuitem"
+                   tabindex="-1"
+                   id="user-menu-item-1"
+               >
+                   Logout
+               </button>
+            </ActionForm>
+        </div>
+    }
+}
+
+#[component]
 fn NavLink(href: &'static str, mobile: bool, active: bool, children: Children) -> impl IntoView {
     let mut class_prefix = String::from("rounded-md px-3 py-2 font-medium");
     class_prefix.push_str(if mobile {
@@ -69,16 +112,16 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
     let profile_label = move || username.get().unwrap_or_default();
     let location = use_location();
     let is_active = move |href| location.pathname.get().starts_with(href);
-    // let active_menu: RwSignal<Option<MenuID>> = RwSignal::new(None);
-    // let toggle_menu = move |menu_id: MenuID| {
-    //     active_menu.update(move |current| {
-    //         if *current == Some(menu_id.clone()) {
-    //             *current = None;
-    //         } else {
-    //             *current = Some(menu_id);
-    //         }
-    //     });
-    // };
+    let active_menu: RwSignal<Option<MenuID>> = RwSignal::new(None);
+    let toggle_menu = move |menu_id: MenuID| {
+        active_menu.update(move |current| {
+            if *current == Some(menu_id.clone()) {
+                *current = None;
+            } else {
+                *current = Some(menu_id);
+            }
+        });
+    };
 
     view! {
         <nav class="bg-gray-800">
@@ -191,6 +234,7 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                                     <div>
                                         <button
                                             type="button"
+                                            on:click= move |_| toggle_menu(MenuID::User)
                                             //class="relative flex rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
                                             class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
                                             id="user-menu-button"
@@ -203,35 +247,7 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                                             {profile_label}
                                         </button>
                                     </div>
-                                    <div
-                                        class="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5 focus:outline-none"
-                                        role="menu"
-                                        aria-orientation="vertical"
-                                        aria-labelledby="user-menu-button"
-                                        tabindex="-1"
-                                    >
-                                        // <!-- Active: "bg-gray-100 outline-none", Not Active: "" -->
-                                        <A href="/settings">
-                                            <div
-                                                class="block px-4 py-2 text-sm text-gray-700"
-                                                role="menuitem"
-                                                tabindex="-1"
-                                                id="user-menu-item-0"
-                                            >
-                                                Settings
-                                            </div>
-                                        </A>
-                                        <ActionForm action=logout>
-                                           <button
-                                               class="block px-4 py-2 text-sm text-gray-700"
-                                               role="menuitem"
-                                               tabindex="-1"
-                                               id="user-menu-item-1"
-                                           >
-                                               Logout
-                                           </button>
-                                        </ActionForm>
-                                    </div>
+                                    <UserMenu active_menu=active_menu logout=logout />
                                 </div>
                             </div>
                         }
