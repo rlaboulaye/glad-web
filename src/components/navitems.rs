@@ -1,6 +1,6 @@
 use crate::auth::*;
 use leptos::prelude::*;
-use leptos_router::{components::*, hooks::use_location};
+use leptos_router::{components::*, hooks::use_location, location::Location};
 
 #[derive(Clone, PartialEq)]
 enum MenuID {
@@ -40,27 +40,24 @@ enum MenuID {
 fn MobileMenu(active_menu: RwSignal<Option<MenuID>>, username: UsernameSignal) -> impl IntoView {
     let class = move || {
         if active_menu.get() == Some(MenuID::Mobile) {
-            "block"
+            "sm:hidden"
         } else {
             "hidden"
         }
     };
     view! {
-        // <div class=class>
-        //     "MOBILE MENU"
-        // </div>
         <div class=class id="mobile-menu">
             <div class="space-y-1 px-2 pb-3 pt-2">
                 <Show when=move || username.with(Option::is_none) fallback=move || {
                     view! {
-                        <NavLink href="/dashboard" mobile={ true }> "Dashboard" </NavLink>
-                        <NavLink href="/find" mobile={ true }> "Find Controls" </NavLink>
+                        <MobileNavLink href="/dashboard"> "Dashboard" </MobileNavLink>
+                        <MobileNavLink href="/find"> "Find Controls" </MobileNavLink>
                     }
                 }>
-                    <NavLink href="/signup" mobile={ true }> "Sign up" </NavLink>
-                    <NavLink href="/login" mobile={ true }> "Login" </NavLink>
+                    <MobileNavLink href="/signup"> "Sign up" </MobileNavLink>
+                    <MobileNavLink href="/login"> "Login" </MobileNavLink>
                 </Show>
-                <NavLink href="/explore" mobile={ true }> "Explore" </NavLink>
+                <MobileNavLink href="/explore"> "Explore" </MobileNavLink>
             </div>
         </div>
     }
@@ -110,16 +107,11 @@ fn UserMenu(active_menu: RwSignal<Option<MenuID>>, logout: LogoutSignal) -> impl
 }
 
 #[component]
-fn NavLink(href: &'static str, mobile: bool, children: Children) -> impl IntoView {
+fn NavLink(href: &'static str, children: Children) -> impl IntoView {
     let location = use_location();
     let is_active = move || location.pathname.get().starts_with(href);
 
-    let mut class_prefix = String::from("rounded-md px-3 py-2 font-medium");
-    class_prefix.push_str(if mobile {
-        " block text-base"
-    } else {
-        " text-sm"
-    });
+    let mut class_prefix = String::from("rounded-md px-3 py-2 font-medium text-sm");
     let class = move || {
         if is_active() {
             format!("{} bg-gray-900 text-white", class_prefix)
@@ -141,10 +133,19 @@ fn NavLink(href: &'static str, mobile: bool, children: Children) -> impl IntoVie
 }
 
 #[component]
+fn MobileNavLink(href: &'static str, children: Children) -> impl IntoView {
+    view! {
+        <A href=href>
+            <div class="rounded-md px-3 py-2 font-medium block text-base text-gray-300 hover:bg-gray-700 hover:text-white">
+                { children() }
+            </div>
+        </A>
+    }
+}
+
+#[component]
 pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl IntoView {
     let profile_label = move || username.get().unwrap_or_default();
-    let location = use_location();
-    // let is_active = move |href| location.pathname.get().starts_with(href);
     let active_menu: RwSignal<Option<MenuID>> = RwSignal::new(None);
     let toggle_menu = move |menu_id: MenuID| {
         active_menu.update(move |current| {
@@ -158,15 +159,33 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
 
     view! {
         <nav class="bg-gray-800">
-            <button
-                type="button"
-                on:click= move |_| toggle_menu(MenuID::Mobile)
-            >
-                "Another Button"
-            </button>
+            // <button
+            //     type="button"
+            //     on:click= move |_| toggle_menu(MenuID::Mobile)
+            // >
+            //     "Another Button"
+            // </button>
             <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
+                // <button
+                //     type="button"
+                //     on:click= move |_| toggle_menu(MenuID::Mobile)
+                // >
+                //     "Another Button"
+                // </button>
                 <div class="relative flex h-16 items-center justify-between">
+                    // <button
+                    //     type="button"
+                    //     on:click= move |_| toggle_menu(MenuID::Mobile)
+                    // >
+                    //     "Another Button"
+                    // </button>
                     <div class="absolute inset-y-0 left-0 flex items-center sm:hidden">
+                        <button
+                            type="button"
+                            on:click= move |_| toggle_menu(MenuID::Mobile)
+                        >
+                            "Another Button"
+                        </button>
                         // <!-- Mobile menu button-->
                         <button
                             type="button"
@@ -231,14 +250,14 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                             <div class="flex space-x-4">
                                 <Show when=move || username.with(Option::is_none) fallback=move || {
                                     view! {
-                                        <NavLink href="/dashboard" mobile={ false }> "Dashboard" </NavLink>
-                                        <NavLink href="/find" mobile={ false }> "Find Controls" </NavLink>
+                                        <NavLink href="/dashboard"> "Dashboard" </NavLink>
+                                        <NavLink href="/find"> "Find Controls" </NavLink>
                                     }
                                 }>
-                                    <NavLink href="/signup" mobile={ false }> "Sign up" </NavLink>
-                                    <NavLink href="/login" mobile={ false }> "Login" </NavLink>
+                                    <NavLink href="/signup"> "Sign up" </NavLink>
+                                    <NavLink href="/login"> "Login" </NavLink>
                                 </Show>
-                                <NavLink href="/explore" mobile={ false }> "Explore" </NavLink>
+                                <NavLink href="/explore"> "Explore" </NavLink>
                             </div>
                         </div>
                     </div>
@@ -297,20 +316,6 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
             </div>
             // <!-- Mobile menu, show/hide based on menu state. -->
             <MobileMenu active_menu=active_menu username=username />
-            // <div class="sm:hidden" id="mobile-menu">
-            //     <div class="space-y-1 px-2 pb-3 pt-2">
-            //         <Show when=move || username.with(Option::is_none) fallback=move || {
-            //             view! {
-            //                 <NavLink href="/dashboard" mobile={ true } pathname=pathname.clone()> "Dashboard" </NavLink>
-            //                 <NavLink href="/find" mobile={ true } pathname=pathname.clone()> "Find Controls" </NavLink>
-            //             }
-            //         }>
-            //             <NavLink href="/signup" mobile={ true } pathname=pathname.clone()> "Sign up" </NavLink>
-            //             <NavLink href="/login" mobile={ true } pathname=pathname.clone()> "Login" </NavLink>
-            //         </Show>
-            //         <NavLink href="/explore" mobile={ true } pathname=pathname.clone()> "Explore" </NavLink>
-            //     </div>
-            // </div>
         </nav>
     }
 }
