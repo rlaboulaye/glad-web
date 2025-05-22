@@ -46,8 +46,22 @@ fn MobileMenu(active_menu: RwSignal<Option<MenuID>>, username: UsernameSignal) -
         }
     };
     view! {
-        <div class=class>
-            "MOBILE MENU"
+        // <div class=class>
+        //     "MOBILE MENU"
+        // </div>
+        <div class=class id="mobile-menu">
+            <div class="space-y-1 px-2 pb-3 pt-2">
+                <Show when=move || username.with(Option::is_none) fallback=move || {
+                    view! {
+                        <NavLink href="/dashboard" mobile={ true }> "Dashboard" </NavLink>
+                        <NavLink href="/find" mobile={ true }> "Find Controls" </NavLink>
+                    }
+                }>
+                    <NavLink href="/signup" mobile={ true }> "Sign up" </NavLink>
+                    <NavLink href="/login" mobile={ true }> "Login" </NavLink>
+                </Show>
+                <NavLink href="/explore" mobile={ true }> "Explore" </NavLink>
+            </div>
         </div>
     }
 }
@@ -96,15 +110,18 @@ fn UserMenu(active_menu: RwSignal<Option<MenuID>>, logout: LogoutSignal) -> impl
 }
 
 #[component]
-fn NavLink(href: &'static str, mobile: bool, active: bool, children: Children) -> impl IntoView {
+fn NavLink(href: &'static str, mobile: bool, children: Children) -> impl IntoView {
+    let location = use_location();
+    let is_active = move || location.pathname.get().starts_with(href);
+
     let mut class_prefix = String::from("rounded-md px-3 py-2 font-medium");
     class_prefix.push_str(if mobile {
         " block text-base"
     } else {
         " text-sm"
     });
-    let class = {
-        if active {
+    let class = move || {
+        if is_active() {
             format!("{} bg-gray-900 text-white", class_prefix)
         } else {
             format!(
@@ -116,7 +133,7 @@ fn NavLink(href: &'static str, mobile: bool, active: bool, children: Children) -
 
     view! {
         <A href=href>
-            <div class=class aria-current=move || if active { Some("page") } else { None }>
+            <div class=class aria-current=move || if is_active() { Some("page") } else { None }>
                 { children() }
             </div>
         </A>
@@ -127,7 +144,7 @@ fn NavLink(href: &'static str, mobile: bool, active: bool, children: Children) -
 pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl IntoView {
     let profile_label = move || username.get().unwrap_or_default();
     let location = use_location();
-    let is_active = move |href| location.pathname.get().starts_with(href);
+    // let is_active = move |href| location.pathname.get().starts_with(href);
     let active_menu: RwSignal<Option<MenuID>> = RwSignal::new(None);
     let toggle_menu = move |menu_id: MenuID| {
         active_menu.update(move |current| {
@@ -214,14 +231,14 @@ pub(crate) fn NavItems(logout: LogoutSignal, username: UsernameSignal) -> impl I
                             <div class="flex space-x-4">
                                 <Show when=move || username.with(Option::is_none) fallback=move || {
                                     view! {
-                                        <NavLink href="/dashboard" mobile={ false } active=is_active("/dashboard")> "Dashboard" </NavLink>
-                                        <NavLink href="/find" mobile={ false } active=is_active("/find")> "Find Controls" </NavLink>
+                                        <NavLink href="/dashboard" mobile={ false }> "Dashboard" </NavLink>
+                                        <NavLink href="/find" mobile={ false }> "Find Controls" </NavLink>
                                     }
                                 }>
-                                    <NavLink href="/signup" mobile={ false } active=is_active("/signup")> "Sign up" </NavLink>
-                                    <NavLink href="/login" mobile={ false } active=is_active("/login")> "Login" </NavLink>
+                                    <NavLink href="/signup" mobile={ false }> "Sign up" </NavLink>
+                                    <NavLink href="/login" mobile={ false }> "Login" </NavLink>
                                 </Show>
-                                <NavLink href="/explore" mobile={ false } active=is_active("/explore")> "Explore" </NavLink>
+                                <NavLink href="/explore" mobile={ false }> "Explore" </NavLink>
                             </div>
                         </div>
                     </div>
