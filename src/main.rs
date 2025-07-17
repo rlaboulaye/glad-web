@@ -42,6 +42,9 @@ async fn main() {
         .route("/api/auth/settings", post(api::auth::update_settings))
         .route("/api/cohorts", get(api::find::get_cohorts))
         .route("/api/find-controls", post(api::find::submit_find_controls))
+        .route("/api/queries", get(api::find::get_user_queries))
+        .route("/api/queries/{id}", get(api::find::get_query_details))
+        .route("/api/pca-data", get(api::explore::get_pca_data))
         // Static file serving for frontend
         .fallback_service(ServeDir::new("frontend/build"))
         // Middleware

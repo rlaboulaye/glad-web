@@ -1,5 +1,5 @@
 use axum::{
-    extract::Request,
+    extract::{Path, Request},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -78,4 +78,54 @@ pub async fn submit_find_controls(request: Request) -> ApiResult<Json<FindContro
         query_id,
         message: "Query submitted successfully".to_string(),
     }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserQueriesResponse {
+    pub queries: Vec<Query>,
+}
+
+pub async fn get_user_queries(request: Request) -> ApiResult<Json<UserQueriesResponse>> {
+    let username = crate::auth::middleware::get_username_from_request(&request)
+        .ok_or(ApiError::AuthenticationError("Not authenticated".to_string()))?;
+
+    let queries = Query::for_user_profile(username)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to retrieve user queries: {}", e);
+            ApiError::InternalServerError
+        })?;
+
+    Ok(Json(UserQueriesResponse { queries }))
+}
+
+pub async fn get_query_details(Path(query_id): Path<i64>, request: Request) -> ApiResult<Json<Query>> {
+    let username = crate::auth::middleware::get_username_from_request(&request)
+        .ok_or(ApiError::AuthenticationError("Not authenticated".to_string()))?;
+
+    let query = Query::for_query(query_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to retrieve query {}: {}", query_id, e);
+            ApiError::UserNotFound
+        })?;
+
+    // Verify the query belongs to the authenticated user
+    let user = crate::models::User::get(username.clone())
+        .await
+        .map_err(|_| ApiError::UserNotFound)?;
+    
+    // Convert user_id to i64 for comparison (assuming user table has integer IDs)
+    let user_id = sqlx::query_scalar!("SELECT user_id FROM user WHERE username = $1", username)
+        .fetch_one(crate::database::get_db())
+        .await
+        .map_err(|_| ApiError::UserNotFound)?;
+
+    let user_id = user_id.ok_or(ApiError::UserNotFound)?;
+
+    if query.user_id != user_id {
+        return Err(ApiError::AuthenticationError("Access denied".to_string()));
+    }
+
+    Ok(Json(query))
 }

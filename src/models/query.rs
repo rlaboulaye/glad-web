@@ -18,7 +18,7 @@ impl Cohort {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
 pub struct Query {
     pub query_id: i64,
     pub user_id: i64,
