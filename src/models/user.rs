@@ -1,23 +1,23 @@
-#[cfg(feature = "ssr")]
 use argon2::{
     password_hash::{rand_core::OsRng, Error as ArgonError, SaltString},
     Argon2, PasswordHash, PasswordHasher,
 };
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "ssr")]
 use tokio::task;
+
+// Validation constants
+pub const USERNAME_MIN_LENGTH: usize = 8;
+pub const PASSWORD_MIN_LENGTH: usize = 8;
 
 #[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct User {
     username: String,
-    #[cfg_attr(feature = "hydrate", allow(dead_code))]
     #[serde(skip_serializing)]
     password: Option<String>,
     email: String,
     bio: Option<String>,
 }
 
-#[cfg(feature = "ssr")]
 static EMAIL_REGEX: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 impl User {
@@ -34,49 +34,43 @@ impl User {
         self.bio.clone()
     }
 
-    pub fn set_password(mut self, password: String) -> Result<Self, String> {
-        static PASSWORD_MIN: usize = 8;
-        if password.len() < PASSWORD_MIN {
-            return Err("You need to provide a stronger password".into());
+    /// Validate password meets minimum requirements
+    pub fn validate_password(password: &str) -> Result<(), crate::models::DatabaseError> {
+        if password.len() < PASSWORD_MIN_LENGTH {
+            return Err(crate::models::DatabaseError::PasswordTooWeak);
         }
+        Ok(())
+    }
+
+    pub fn set_password(mut self, password: String) -> Result<Self, crate::models::DatabaseError> {
+        Self::validate_password(&password)?;
         self.password = Some(password);
         Ok(self)
     }
 
-    pub fn set_username(mut self, username: String) -> Result<Self, String> {
-        static USERNAME_MIN: usize = 8;
-        if username.len() < USERNAME_MIN {
-            return Err(format!(
-                "Username {username} is too short, at least {USERNAME_MIN} characters"
-            ));
+    pub fn set_username(mut self, username: String) -> Result<Self, crate::models::DatabaseError> {
+        if username.len() < USERNAME_MIN_LENGTH {
+            return Err(crate::models::DatabaseError::UsernameTooShort);
         }
         self.username = username;
         Ok(self)
     }
 
-    #[cfg(feature = "ssr")]
     fn validate_email(email: &str) -> bool {
         EMAIL_REGEX
             .get_or_init(|| regex::Regex::new(r"^[\w\-\.]+@([\w-]+\.)+\w{2,4}$").unwrap())
             .is_match(email)
     }
 
-    #[cfg(not(feature = "ssr"))]
-    fn validate_email(email: &str) -> bool {
-        crate::emailRegex(email)
-    }
-
-    pub fn set_email(mut self, email: String) -> Result<Self, String> {
+    pub fn set_email(mut self, email: String) -> Result<Self, crate::models::DatabaseError> {
         if !Self::validate_email(&email) {
-            return Err(format!(
-                "The email {email} is invalid, provide a correct one"
-            ));
+            return Err(crate::models::DatabaseError::InvalidEmail);
         }
         self.email = email;
         Ok(self)
     }
 
-    pub fn set_bio(mut self, bio: String) -> Result<Self, String> {
+    pub fn set_bio(mut self, bio: String) -> Result<Self, crate::models::DatabaseError> {
         if bio.is_empty() {
             self.bio = None;
         } else {
@@ -85,8 +79,7 @@ impl User {
         Ok(self)
     }
 
-    #[cfg(feature = "ssr")]
-    pub async fn get(username: String) -> Result<Self, sqlx::Error> {
+    pub async fn get(username: String) -> Result<Self, crate::models::DatabaseError> {
         sqlx::query_as!(
             Self,
             //"SELECT username, email, bio, NULL as \"password: Option<String>\" FROM user WHERE username=$1",
@@ -95,9 +88,12 @@ impl User {
         )
         .fetch_one(crate::database::get_db())
         .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => crate::models::DatabaseError::UserNotFound,
+            _ => crate::models::DatabaseError::from(e),
+        })
     }
 
-    #[cfg(feature = "ssr")]
     pub async fn get_email(email: String) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Self,
@@ -109,26 +105,29 @@ impl User {
         .await
     }
 
-    #[cfg(feature = "ssr")]
-    pub async fn insert(&self) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub async fn insert(&self) -> Result<sqlx::sqlite::SqliteQueryResult, crate::models::DatabaseError> {
         let password = match &self.password {
             Some(password) => hash_password(password.to_string())
                 .await
                 .expect("Failed to hash password"),
             None => String::new(),
         };
+        
+        // Convert None bio to empty string to match database DEFAULT
+        let bio = self.bio.as_deref().unwrap_or("");
+        
         sqlx::query!(
             "INSERT INTO user(username, bio, email, password) VALUES ($1, $2, $3, $4)",
             self.username,
-            self.bio,
+            bio,
             self.email,
             password,
         )
         .execute(crate::database::get_db())
         .await
+        .map_err(crate::models::DatabaseError::from)
     }
 
-    #[cfg(feature = "ssr")]
     pub async fn update(&self) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         match &self.password {
             Some(password) => {
@@ -160,7 +159,6 @@ impl User {
 }
 
 // Hash a password in a separate blocking thread
-#[cfg(feature = "ssr")]
 async fn hash_password(password: String) -> Result<String, String> {
     task::spawn_blocking(move || {
         let salt = SaltString::generate(&mut OsRng);
@@ -174,7 +172,6 @@ async fn hash_password(password: String) -> Result<String, String> {
     .map_err(|e| e.to_string())? // Flatten Result<Result<String, String>, JoinError>
 }
 
-#[cfg(feature = "ssr")]
 pub async fn verify_password(password: String, password_hash: String) -> Result<(), String> {
     Ok(task::spawn_blocking(move || -> Result<(), String> {
         let hash =

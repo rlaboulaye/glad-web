@@ -1,23 +1,12 @@
 use axum::{
-    http::{header, Request, StatusCode},
+    extract::Request,
+    http::{header, StatusCode},
     response::Response,
 };
-use jsonwebtoken::{decode, DecodingKey, Validation};
-use leptos::prelude::*;
-use serde::{Deserialize, Serialize};
+
+use crate::auth::jwt::decode_token;
 
 static AUTH_COOKIE: &str = "token";
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TokenClaims {
-    pub sub: String, // Optional. Subject (whom token refers to)
-    pub exp: usize, // Required (validate_exp defaults to true in validation). Expiration time (as UTC timestamp)
-                    // aud: String,         // Optional. Audience
-                    // iat: usize,          // Optional. Issued at (as UTC timestamp)
-                    // iss: String,         // Optional. Issuer
-                    // nbf: usize,          // Optional. Not Before (as UTC timestamp)
-                    // sub: String,         // Optional. Subject (whom token refers to)
-}
 
 pub(crate) static REMOVE_COOKIE: &str = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 
@@ -63,28 +52,8 @@ async fn redirect(req: Request<axum::body::Body>, next: axum::middleware::Next) 
     }
 }
 
-pub(crate) fn decode_token(
-    token: &str,
-) -> Result<jsonwebtoken::TokenData<TokenClaims>, jsonwebtoken::errors::Error> {
-    let secret = env!("JWT_SECRET");
-    decode::<TokenClaims>(
-        token,
-        &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
-    )
-}
-
-pub(crate) fn encode_token(token_claims: TokenClaims) -> jsonwebtoken::errors::Result<String> {
-    let secret = env!("JWT_SECRET");
-    jsonwebtoken::encode(
-        &jsonwebtoken::Header::default(),
-        &token_claims,
-        &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
-    )
-}
-
 #[tracing::instrument]
-pub(crate) fn get_username_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
+pub fn get_username_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
     headers.get(header::COOKIE).and_then(|x| {
         x.to_str()
             .unwrap()
@@ -96,29 +65,6 @@ pub(crate) fn get_username_from_headers(headers: &axum::http::HeaderMap) -> Opti
 }
 
 #[tracing::instrument]
-pub fn get_username() -> Option<String> {
-    if let Some(req) = use_context::<axum::http::request::Parts>() {
-        get_username_from_headers(&req.headers)
-    } else {
-        None
-    }
-}
-
-#[tracing::instrument]
-pub async fn set_username(username: String) -> bool {
-    if let Some(res) = use_context::<leptos_axum::ResponseOptions>() {
-        let token = encode_token(TokenClaims {
-            sub: username,
-            exp: (sqlx::types::chrono::Utc::now().timestamp() as usize) + 3_600_000,
-        })
-        .unwrap();
-        res.insert_header(
-            header::SET_COOKIE,
-            header::HeaderValue::from_str(&format!("{AUTH_COOKIE}={token}; path=/; HttpOnly"))
-                .expect("header value couldn't be set"),
-        );
-        true
-    } else {
-        false
-    }
+pub fn get_username_from_request(request: &Request) -> Option<String> {
+    get_username_from_headers(request.headers())
 }

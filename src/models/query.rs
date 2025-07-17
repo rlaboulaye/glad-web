@@ -1,13 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
 pub struct Cohort {
     pub cohort_id: i64,
     pub cohort_name: String,
 }
 
 impl Cohort {
-    #[cfg(feature = "ssr")]
     pub async fn retrieve_all() -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query!("SELECT cohort_id, cohort_name FROM cohort")
             .map(|x| Self {
@@ -33,8 +32,8 @@ pub struct Query {
 }
 
 impl Query {
-    #[cfg(feature = "ssr")]
     pub async fn insert(
+        username: String,
         description: String,
         self_described_latino: bool,
         n_controls: usize,
@@ -42,27 +41,30 @@ impl Query {
     ) -> Result<i64, sqlx::Error> {
         let self_described_latino = self_described_latino as i32;
         let n_controls = n_controls as i32;
-        let logged_user = crate::auth::get_username();
         let file_path = "file_path".to_string();
         let logged_user_id =
-            sqlx::query!("SELECT user_id FROM user WHERE username=$1", logged_user)
+            sqlx::query!("SELECT user_id FROM user WHERE username=$1", username)
                 .map(|x| x.user_id)
                 .fetch_one(crate::database::get_db())
                 .await
-                .expect("Could not retrieve user_id using username {logged_user}");
-        let cohort_query_params = format!("?{}", ", ?".repeat(excluded_cohorts.len() - 1));
-        let cohort_query_str = format!(
-            "SELECT cohort_id FROM cohort WHERE cohort_name IN ( { } )",
-            cohort_query_params
-        );
-        let mut cohort_query = sqlx::query_scalar(&cohort_query_str);
-        for cohort_name in excluded_cohorts {
-            cohort_query = cohort_query.bind(cohort_name);
-        }
-        let excluded_cohort_ids: Vec<i32> = cohort_query
-            .fetch_all(crate::database::get_db())
-            .await
-            .expect("Could not retrieve cohort ids");
+                .expect(&format!("Could not retrieve user_id using username {}", username));
+        let excluded_cohort_ids: Vec<i32> = if excluded_cohorts.is_empty() {
+            Vec::new()
+        } else {
+            let cohort_query_params = format!("?{}", ", ?".repeat(excluded_cohorts.len() - 1));
+            let cohort_query_str = format!(
+                "SELECT cohort_id FROM cohort WHERE cohort_name IN ( {} )",
+                cohort_query_params
+            );
+            let mut cohort_query = sqlx::query_scalar(&cohort_query_str);
+            for cohort_name in excluded_cohorts {
+                cohort_query = cohort_query.bind(cohort_name);
+            }
+            cohort_query
+                .fetch_all(crate::database::get_db())
+                .await
+                .expect("Could not retrieve cohort ids")
+        };
         let query_id = sqlx::query!(
             "INSERT INTO query(user_id, description, file_path, self_described_latino, n_controls) VALUES ($1, $2, $3, $4, $5)",
             logged_user_id,
@@ -75,30 +77,31 @@ impl Query {
         .await
         .expect("Could not submit query")
         .last_insert_rowid();
-        let query_cohort_insert_str = format!(
-            "INSERT INTO query_cohort(query_id, cohort_id) VALUES ({query_id}, ?){}",
-            format!(", ({query_id}, ?)").repeat(excluded_cohort_ids.len() - 1)
-        );
-        let mut query_cohort_insert_query = sqlx::query(&query_cohort_insert_str);
-        for cohort_id in excluded_cohort_ids {
-            query_cohort_insert_query = query_cohort_insert_query.bind(cohort_id);
+        // Only insert cohort exclusions if there are any
+        if !excluded_cohort_ids.is_empty() {
+            let query_cohort_insert_str = format!(
+                "INSERT INTO query_cohort(query_id, cohort_id) VALUES ({query_id}, ?){}",
+                format!(", ({query_id}, ?)").repeat(excluded_cohort_ids.len() - 1)
+            );
+            let mut query_cohort_insert_query = sqlx::query(&query_cohort_insert_str);
+            for cohort_id in excluded_cohort_ids {
+                query_cohort_insert_query = query_cohort_insert_query.bind(cohort_id);
+            }
+            query_cohort_insert_query
+                .execute(crate::database::get_db())
+                .await
+                .expect("Could not link query to cohorts");
         }
-        query_cohort_insert_query
-            .execute(crate::database::get_db())
-            .await
-            .expect("Could not link query to cohorts");
         Ok(query_id)
     }
 
-    #[cfg(feature = "ssr")]
-    pub async fn for_user_profile() -> Result<Vec<Self>, sqlx::Error> {
-        let logged_user = crate::auth::get_username();
+    pub async fn for_user_profile(username: String) -> Result<Vec<Self>, sqlx::Error> {
         let logged_user_id =
-            sqlx::query!("SELECT user_id FROM user WHERE username=$1", logged_user)
+            sqlx::query!("SELECT user_id FROM user WHERE username=$1", username)
                 .map(|x| x.user_id)
                 .fetch_one(crate::database::get_db())
                 .await
-                .expect("Could not retrieve user_id using username {logged_user}");
+                .expect(&format!("Could not retrieve user_id using username {}", username));
         sqlx::query!(
             "SELECT query_id, user_id, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE user_id=$1",
             logged_user_id,
@@ -120,7 +123,6 @@ impl Query {
         .await
     }
 
-    #[cfg(feature = "ssr")]
     pub async fn for_query(query_id: i64) -> Result<Self, sqlx::Error> {
         sqlx::query!(
             "SELECT query_id, user_id, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE query_id=$1",
@@ -143,7 +145,6 @@ impl Query {
         .await
     }
 
-    #[cfg(feature = "ssr")]
     pub async fn delete(query_id: i64) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         sqlx::query!("DELETE FROM query WHERE query_id=$1", query_id)
             .execute(crate::database::get_db())

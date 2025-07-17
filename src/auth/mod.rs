@@ -1,13 +1,5 @@
-use leptos::prelude::{RwSignal, ServerAction};
+pub mod jwt;
+pub mod middleware;
+pub mod server;
 
-mod api;
-#[cfg(feature = "ssr")]
-mod server;
-pub use api::*;
-#[cfg(feature = "ssr")]
-pub use server::*;
-
-pub type LogoutSignal = ServerAction<LogoutAction>;
-pub type LoginSignal = ServerAction<LoginAction>;
-pub type SignupSignal = ServerAction<SignupAction>;
-pub type UsernameSignal = RwSignal<Option<String>>;
+pub use server::{get_username_from_headers, get_username_from_request};
