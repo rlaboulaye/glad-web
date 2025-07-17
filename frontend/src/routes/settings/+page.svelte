@@ -108,7 +108,7 @@
 	<title>Settings - GLAD</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+<div class="bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
 	<div class="max-w-md w-full mx-auto mt-10">
 		<h1 class="text-center text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">
 			Profile Settings

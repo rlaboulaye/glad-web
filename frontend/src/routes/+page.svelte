@@ -6,7 +6,7 @@
 	<title>GLAD - Genetics of Latin American Diversity</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center px-4 sm:px-6 lg:px-8 relative">
+<div class="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
 	<div class="max-w-4xl mx-auto text-center">
 		<div class="mb-8 flex justify-center">
 			<div class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-800 dark:text-gray-100 leading-tight text-left">
@@ -50,29 +50,6 @@
 				</svg>
 				Find Controls
 			</a>
-		</div>
-	</div>
-	
-	<!-- Lab Logo -->
-	<div class="absolute bottom-16 left-8 hidden md:block">
-		<img 
-			src="/lab-logo.png" 
-			alt="Evolution Genetics Group" 
-			class="h-48 w-auto opacity-80 hover:opacity-100 transition-opacity duration-200"
-		/>
-	</div>
-	
-	<!-- Institute Logo and Text -->
-	<div class="absolute bottom-20 right-8 hidden md:flex items-center space-x-4">
-		<img 
-			src="/umb_som.svg" 
-			alt="University of Maryland School of Medicine" 
-			class="h-36 w-auto opacity-80 hover:opacity-100 transition-opacity duration-200"
-		/>
-		<div class="text-right text-gray-600 dark:text-gray-400" style="font-family: TrajanProRegular, serif;">
-			<div class="text-sm font-medium">UNIVERSITY OF MARYLAND</div>
-			<div class="text-sm font-medium">SCHOOL OF MEDICINE</div>
-			<div class="text-sm font-medium">INSTITUTE FOR GENOME SCIENCES</div>
 		</div>
 	</div>
 </div>
