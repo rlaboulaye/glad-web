@@ -90,7 +90,7 @@
 	<title>Reset Password - GLAD</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+<div class="bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
 	<div class="sm:mx-auto sm:w-full sm:max-w-md mt-20">
 		<h2 class="text-center text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
 			Reset Password

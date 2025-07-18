@@ -6,7 +6,7 @@
 	<title>GLAD - Genetics of Latin American Diversity</title>
 </svelte:head>
 
-<div class="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
+<div class="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-24">
 	<div class="max-w-4xl mx-auto text-center">
 		<div class="mb-8 flex justify-center">
 			<div class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-800 dark:text-gray-100 leading-tight text-left">
