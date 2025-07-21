@@ -20,4 +20,8 @@ jsonwebtoken = { version = "9" }
 regex = { version = "1" }
 mail-send = { version = "0.5" }
 argon2 = { version = "0.5" }
+sprs = { version = "0.11" }
+rayon = { version = "1.10" }
+once_cell = { version = "1.21" }
+csv = { version = "1.3" }
 

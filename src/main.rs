@@ -13,6 +13,7 @@ mod database;
 mod models;
 mod auth;
 mod api;
+mod visualization;
 
 #[tokio::main]
 async fn main() {
@@ -30,6 +31,60 @@ async fn main() {
         .await
         .expect("Failed to initialize database");
 
+    // Warm visualization cache
+    tracing::info!("Warming visualization cache...");
+    tokio::spawn(async {
+        // First warm the basic cache (communities, groups, etc.)
+        match api::explore::get_ibd_communities(axum::extract::Query(api::explore::CommunitiesQuery { limit: None })).await {
+            Ok(_) => tracing::info!("Basic visualization cache warmed successfully"),
+            Err(e) => tracing::error!("Failed to warm basic visualization cache: {:?}", e),
+        }
+        
+        // Then warm the IBD matrix computation for top 15 communities (default view)
+        tracing::info!("Warming IBD matrix cache for top 15 communities...");
+        
+        // Get the top 15 community labels
+        match api::explore::get_ibd_groups(axum::extract::Query(api::explore::IbdGroupsQuery {
+            grouping: "ibd_community".to_string(),
+            min_size: Some(30),
+        })).await {
+            Ok(groups_response) => {
+                // Parse the JSON response
+                if let Ok(groups_data) = serde_json::from_value::<serde_json::Value>(groups_response.0.clone()) {
+                    if let Some(groups_array) = groups_data.get("groups").and_then(|v| v.as_array()) {
+                        let top_15_labels: Vec<String> = groups_array
+                            .iter()
+                            .filter_map(|g| {
+                                let label = g.get("label")?.as_str()?;
+                                if label != "Unknown" { Some(label.to_string()) } else { None }
+                            })
+                            .take(15)
+                            .collect();
+                        
+                        if !top_15_labels.is_empty() {
+                            let matrix_request = api::explore::IbdMatrixQuery {
+                                grouping: "ibd_community".to_string(),
+                                selected_groups: top_15_labels.clone(),
+                            };
+                            
+                            match api::explore::compute_ibd_matrix(axum::extract::Json(matrix_request)).await {
+                                Ok(_) => tracing::info!("IBD matrix cache warmed for {} communities", top_15_labels.len()),
+                                Err(e) => tracing::error!("Failed to warm IBD matrix cache: {:?}", e),
+                            }
+                        } else {
+                            tracing::warn!("No valid communities found for cache warming");
+                        }
+                    } else {
+                        tracing::error!("Invalid groups response format for cache warming");
+                    }
+                } else {
+                    tracing::error!("Failed to parse groups response for cache warming");
+                }
+            },
+            Err(e) => tracing::error!("Failed to get communities for cache warming: {:?}", e),
+        }
+    });
+
     // Create router
     let app = Router::new()
         // API routes
@@ -45,6 +100,9 @@ async fn main() {
         .route("/api/queries", get(api::find::get_user_queries))
         .route("/api/queries/{id}", get(api::find::get_query_details))
         .route("/api/pca-data", get(api::explore::get_pca_data))
+        .route("/api/ibd-communities", get(api::explore::get_ibd_communities))
+        .route("/api/ibd-groups", get(api::explore::get_ibd_groups))
+        .route("/api/ibd-matrix", post(api::explore::compute_ibd_matrix))
         // Static file serving for frontend
         .fallback_service(ServeDir::new("frontend/build"))
         // Middleware
