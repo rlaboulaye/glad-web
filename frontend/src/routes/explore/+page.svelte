@@ -23,6 +23,9 @@
 	let ibdLoading = false;
 	let heatmapData: any = null;
 	let logScale = false; // Toggle for log scale visualization
+	
+	// IBD grouping fields
+	let ibdSelectedFields = new Set(['ibd_community']); // Default to ibd_community
 
 	// Reactive statement to update plot when loading completes
 	$: if (!loading && data.length && Plotly && plotDiv) {
@@ -36,6 +39,20 @@
 			selectedFields = new Set([field, ...selectedFields]);
 		}
 		updatePlot();
+	}
+	
+	function toggleIbdField(field: string) {
+		if (ibdSelectedFields.has(field)) {
+			ibdSelectedFields = new Set([...ibdSelectedFields].filter(f => f !== field));
+		} else {
+			ibdSelectedFields = new Set([field, ...ibdSelectedFields]);
+		}
+		// Reset groups when grouping changes
+		ibdGroups = [];
+		selectedGroups = new Set();
+		if (ibdSelectedFields.size > 0) {
+			loadIbdGroups();
+		}
 	}
 
 	function updatePlot() {
@@ -135,8 +152,15 @@
 	}
 
 	async function loadIbdGroups() {
+		// Don't load if no fields are selected
+		if (ibdSelectedFields.size === 0) return;
+		
 		try {
-			const res = await fetch('/api/ibd-groups?grouping=ibd_community&min_size=30');
+			// Generate grouping parameter from selected fields
+			const orderedFields = availableFields.filter(f => ibdSelectedFields.has(f));
+			const grouping = orderedFields.join(',');
+			
+			const res = await fetch(`/api/ibd-groups?grouping=${encodeURIComponent(grouping)}&min_size=30`);
 			if (!res.ok) {
 				throw new Error('Failed to load IBD groups');
 			}
@@ -154,15 +178,19 @@
 	}
 
 	async function updateHeatmap() {
-		if (!selectedGroups.size || !Plotly || !heatmapDiv) return;
+		if (!selectedGroups.size || !Plotly || !heatmapDiv || ibdSelectedFields.size === 0) return;
 
 		ibdLoading = true;
 		try {
+			// Generate grouping parameter from selected fields
+			const orderedFields = availableFields.filter(f => ibdSelectedFields.has(f));
+			const grouping = orderedFields.join(',');
+			
 			const res = await fetch('/api/ibd-matrix', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					grouping: 'ibd_community',
+					grouping: grouping,
 					selected_groups: [...selectedGroups]
 				})
 			});
@@ -399,17 +427,48 @@
 
 			<!-- IBD Heatmap Tab -->
 			{#if activeTab === 'ibd'}
+				<!-- IBD Grouping Fields Selector -->
+				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
+					<div>
+						<p class="text-gray-700 dark:text-gray-300 mb-3 font-semibold">Group IBD heatmap by metadata fields:</p>
+						<div class="flex flex-wrap gap-2">
+							{#each availableFields as field}
+								<button
+									class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
+										{ibdSelectedFields.has(field)
+											? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
+											: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+									on:click={() => toggleIbdField(field)}
+								>
+									{field}
+								</button>
+							{/each}
+						</div>
+					</div>
+				</div>
+
 				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 					<!-- IBD Controls -->
 					<div class="space-y-6">
-						<div>
-							<div class="flex items-center justify-between mb-4">
-								<div>
-									<p class="text-gray-700 dark:text-gray-300 font-semibold">IBD Community Selection:</p>
-									<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-										Choose communities to visualize Identity-by-Descent patterns ({selectedGroups.size} selected)
+						{#if ibdSelectedFields.size === 0}
+							<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
+								<div class="text-center">
+									<div class="text-3xl mb-2">🏷️</div>
+									<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Metadata Fields</h3>
+									<p class="text-gray-600 dark:text-gray-400">
+										Choose metadata fields above to group the data
 									</p>
 								</div>
+							</div>
+						{:else}
+							<div>
+								<div class="flex items-center justify-between mb-4">
+									<div>
+										<p class="text-gray-700 dark:text-gray-300 font-semibold">Group Selection:</p>
+										<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+											Choose groups to visualize Identity-by-Descent patterns ({selectedGroups.size} selected)
+										</p>
+									</div>
 								<div class="flex items-center space-x-3">
 									{#if ibdLoading}
 										<div class="flex items-center space-x-2">
@@ -455,11 +514,12 @@
 											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 										</svg>
-										<p class="text-sm text-gray-600 dark:text-gray-400">Loading communities...</p>
+										<p class="text-sm text-gray-600 dark:text-gray-400">Loading groups...</p>
 									</div>
 								</div>
 							{/if}
 						</div>
+						{/if}
 						
 						<!-- Log Scale Toggle (moved below community selection) -->
 						<div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-600">
@@ -486,9 +546,9 @@
 						<div class="w-full h-[600px] md:h-[700px] lg:h-[750px] flex items-center justify-center">
 							<div class="text-center">
 								<div class="text-4xl mb-4">📊</div>
-								<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Communities</h3>
+								<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Groups</h3>
 								<p class="text-gray-600 dark:text-gray-400">
-									Choose IBD communities above to generate the heatmap
+									Choose groups above to generate the heatmap
 								</p>
 							</div>
 						</div>
