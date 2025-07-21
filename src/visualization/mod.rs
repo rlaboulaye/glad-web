@@ -34,8 +34,6 @@ const CANONICAL_FIELD_ORDER: &[&str] = &[
 /// Minimum group size for privacy protection
 const MIN_GROUP_SIZE: usize = 30;
 
-/// Default number of top communities for IBD heatmap
-const DEFAULT_HEATMAP_COMMUNITIES: usize = 16;
 
 /// Global visualization cache instance
 pub static VISUALIZATION_CACHE: Lazy<VisualizationCache> = Lazy::new(|| {
