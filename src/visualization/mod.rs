@@ -20,11 +20,12 @@ const IBD_COMMUNITIES_PATH: &str = "data/visualization_data/info_all_membership_
 const IBD_MATRIX_PATH: &str = "data/visualization_data/clust_all_mat.mtx";
 
 /// Canonical order for grouping fields (ensures consistent cache keys)
+/// Matches frontend field order for consistency
 const CANONICAL_FIELD_ORDER: &[&str] = &[
     "phs", 
-    "sex", 
     "country", 
     "region", 
+    "sex", 
     "ethnicity", 
     "self_described", 
     "ibd_community"
@@ -34,7 +35,7 @@ const CANONICAL_FIELD_ORDER: &[&str] = &[
 const MIN_GROUP_SIZE: usize = 30;
 
 /// Default number of top communities for IBD heatmap
-const DEFAULT_HEATMAP_COMMUNITIES: usize = 15;
+const DEFAULT_HEATMAP_COMMUNITIES: usize = 16;
 
 /// Global visualization cache instance
 pub static VISUALIZATION_CACHE: Lazy<VisualizationCache> = Lazy::new(|| {
@@ -115,6 +116,9 @@ pub struct Individual {
     pub project: Option<String>,
     pub ibd_community: Option<u32>,
     pub glad_status: Option<String>,
+    /// Index in the IBD sparse matrix (row/column index), None if not in IBD data
+    #[serde(skip)]
+    pub ibd_matrix_index: Option<usize>,
 }
 
 impl VisualizationCache {
@@ -190,6 +194,7 @@ impl VisualizationCache {
                     project: None,
                     ibd_community: None,
                     glad_status: None,
+                    ibd_matrix_index: None,
                 };
                 
                 individuals_map.insert(id.to_string(), individual);
@@ -212,6 +217,8 @@ impl VisualizationCache {
         // Define a struct for parsing IBD community TSV rows
         #[derive(Deserialize)]
         struct IbdCommunityRow {
+            #[serde(rename = "Vcf_ID")]
+            matrix_index: usize,
             #[serde(rename = "Sample")]
             sample: String,
             #[serde(rename = "Membership")]
@@ -222,7 +229,7 @@ impl VisualizationCache {
             glad_status: Option<String>,
         }
 
-        // Parse TSV and merge data
+        // Parse TSV and merge data, using Vcf_ID as the matrix index
         for result in csv_reader.deserialize::<IbdCommunityRow>() {
             let row = result.map_err(|e| {
                 error!("Failed to parse IBD community TSV row: {}", e);
@@ -234,6 +241,8 @@ impl VisualizationCache {
                 individual.ibd_community = row.membership;
                 individual.project = row.project;
                 individual.glad_status = row.glad_status;
+                // Use the Vcf_ID as the IBD matrix index
+                individual.ibd_matrix_index = Some(row.matrix_index);
             }
         }
 
@@ -241,21 +250,28 @@ impl VisualizationCache {
         self.individuals = individuals_map.into_values().collect();
         
         // Build index mappings
-        for (matrix_index, individual) in self.individuals.iter().enumerate() {
-            self.individual_to_index.insert(individual.id.clone(), matrix_index);
+        for (array_index, individual) in self.individuals.iter().enumerate() {
+            self.individual_to_index.insert(individual.id.clone(), array_index);
 
-            // Build community mappings
-            if let Some(community_id) = individual.ibd_community {
+            // Build community mappings using IBD matrix indices (not array indices)
+            if let (Some(community_id), Some(ibd_matrix_index)) = (individual.ibd_community, individual.ibd_matrix_index) {
                 self.community_to_individuals
                     .entry(community_id)
                     .or_insert_with(Vec::new)
-                    .push(matrix_index);
+                    .push(ibd_matrix_index); // Use the correct IBD matrix index
             }
         }
 
         info!("Merged data for {} individuals with {} IBD communities", 
               self.individuals.len(), 
               self.community_to_individuals.len());
+
+        // Debug: Check community 212 indices
+        if let Some(community_212_indices) = self.community_to_individuals.get(&212) {
+            info!("Community 212 has {} individuals with IBD matrix indices: {:?}", 
+                  community_212_indices.len(), 
+                  &community_212_indices[0..std::cmp::min(10, community_212_indices.len())]);
+        }
         
         Ok(())
     }
@@ -350,7 +366,10 @@ impl VisualizationCache {
             // Check if individual has valid values for all fields
             if self.individual_has_valid_values(individual, fields, &valid_field_values) {
                 if let Some(group_key) = self.create_group_key(individual, fields) {
-                    group_map.entry(group_key).or_insert_with(Vec::new).push(index);
+                    // Only include individuals that have IBD matrix indices
+                    if let Some(ibd_matrix_index) = individual.ibd_matrix_index {
+                        group_map.entry(group_key).or_insert_with(Vec::new).push(ibd_matrix_index);
+                    }
                 }
                 // If create_group_key returns None, individual is automatically excluded
             }

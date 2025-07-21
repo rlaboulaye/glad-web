@@ -122,25 +122,30 @@ impl IbdComputation {
     ) -> f32 {
         let col_set: HashSet<usize> = cols.iter().copied().collect();
         let mut sum = 0.0f64;
-        let mut count = 0usize;
+
+        // Debug: Sample some actual matrix values
+        if rows.len() > 0 && cols.len() > 0 {
+            let sample_row = rows[0];
+            let sample_col = cols.iter().next().copied().unwrap_or(0);
+            if let Some(sample_value) = matrix.get(sample_row, sample_col) {
+                tracing::info!("Sample IBD matrix lookup: matrix[{},{}] = {}", sample_row, sample_col, sample_value);
+            }
+        }
 
         for &row_idx in rows {
             if let Some(row) = matrix.outer_view(row_idx) {
-                if row.nnz() == 0 {
-                    continue;
-                }
-
                 for (col_idx, &value) in row.iter() {
                     if col_set.contains(&col_idx) {
                         sum += value as f64;
-                        count += 1;
                     }
                 }
             }
         }
 
-        if count > 0 {
-            (sum / count as f64) as f32
+        // Divide by total possible pairs (including zeros), not just non-zero pairs
+        let total_pairs = rows.len() * cols.len();
+        if total_pairs > 0 {
+            (sum / total_pairs as f64) as f32
         } else {
             0.0
         }
@@ -154,25 +159,21 @@ impl IbdComputation {
     ) -> f32 {
         let row_set: HashSet<usize> = group_a.iter().copied().collect();
         let mut sum = 0.0f64;
-        let mut count = 0usize;
 
         for &col_idx in group_b {
             if let Some(col_as_row) = matrix_t.outer_view(col_idx) {
-                if col_as_row.nnz() == 0 {
-                    continue;
-                }
-
                 for (row_idx, &value) in col_as_row.iter() {
                     if row_set.contains(&row_idx) {
                         sum += value as f64;
-                        count += 1;
                     }
                 }
             }
         }
 
-        if count > 0 {
-            (sum / count as f64) as f32
+        // Divide by total possible pairs (including zeros), not just non-zero pairs
+        let total_pairs = group_a.len() * group_b.len();
+        if total_pairs > 0 {
+            (sum / total_pairs as f64) as f32
         } else {
             0.0
         }
