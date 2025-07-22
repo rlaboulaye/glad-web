@@ -2,6 +2,9 @@
 	import { user, logout, isLoading } from '$lib/auth.js';
 	import { page } from '$app/stores';
 	import { derived } from 'svelte/store';
+	import { onMount } from 'svelte';
+	import { unreadCount, isNotificationPanelOpen, fetchUnreadCount, toggleNotificationPanel, closeNotificationPanel } from '$lib/notifications.js';
+	import NotificationPanel from './NotificationPanel.svelte';
 
 	let showMobileMenu = false;
 	let showUserMenu = false;
@@ -10,6 +13,7 @@
 	function handleOutsideClick() {
 		showMobileMenu = false;
 		showUserMenu = false;
+		closeNotificationPanel();
 	}
 
 	// Create a derived store for current path that only updates when path changes
@@ -42,6 +46,47 @@
 	async function handleLogout() {
 		showUserMenu = false;
 		await logout();
+	}
+
+	// Fetch unread count when user is authenticated
+	$: if ($user && !$isLoading) {
+		fetchUnreadCount().catch(console.error);
+	}
+
+	// Poll for new notifications every 30 seconds when user is logged in
+	onMount(() => {
+		let interval;
+		
+		const setupPolling = () => {
+			if ($user && !$isLoading) {
+				interval = setInterval(() => {
+					fetchUnreadCount().catch(console.error);
+				}, 30000); // 30 seconds
+			}
+		};
+		
+		// Set up initial polling
+		setupPolling();
+		
+		// Re-setup polling when user state changes
+		const unsubscribeUser = user.subscribe(() => {
+			if (interval) {
+				clearInterval(interval);
+			}
+			setupPolling();
+		});
+		
+		return () => {
+			if (interval) {
+				clearInterval(interval);
+			}
+			unsubscribeUser();
+		};
+	});
+
+	function handleNotificationClick() {
+		toggleNotificationPanel();
+		showUserMenu = false;
 	}
 </script>
 
@@ -171,27 +216,40 @@
 			{#if $user}
 				<div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
 					<!-- Notifications button -->
-					<button
-						type="button"
-						class="relative rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
-					>
-						<span class="absolute -inset-1.5"></span>
-						<span class="sr-only">View notifications</span>
-						<svg
-							class="h-6 w-6"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke-width="1.5"
-							stroke="currentColor"
-							aria-hidden="true"
+					<div class="relative">
+						<button
+							type="button"
+							on:click|stopPropagation={handleNotificationClick}
+							class="relative rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"
-							/>
-						</svg>
-					</button>
+							<span class="absolute -inset-1.5"></span>
+							<span class="sr-only">View notifications</span>
+							<svg
+								class="h-6 w-6"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke-width="1.5"
+								stroke="currentColor"
+								aria-hidden="true"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"
+								/>
+							</svg>
+							
+							<!-- Unread count badge -->
+							{#if $unreadCount > 0}
+								<span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-xs font-medium text-white">
+									{$unreadCount > 9 ? '9+' : $unreadCount}
+								</span>
+							{/if}
+						</button>
+						
+						<!-- Notification Panel -->
+						<NotificationPanel isOpen={$isNotificationPanelOpen} />
+					</div>
 
 					<!-- Profile dropdown -->
 					<div class="relative ml-3">

@@ -14,6 +14,9 @@ mod visualization;
 /// Number of top communities to use for cache warming
 const CACHE_WARMING_COMMUNITIES_NUM: usize = 16;
 
+/// Notification check interval in seconds
+const NOTIFICATION_CHECK_INTERVAL_SECONDS: u64 = 60;
+
 #[tokio::main]
 async fn main() {
     // Initialize tracing
@@ -109,6 +112,30 @@ async fn main() {
         }
     });
 
+    // Start notification monitoring task
+    tracing::info!("Starting notification monitoring task...");
+    tokio::spawn(async {
+        let mut interval = tokio::time::interval(
+            tokio::time::Duration::from_secs(NOTIFICATION_CHECK_INTERVAL_SECONDS)
+        );
+        
+        loop {
+            interval.tick().await;
+            
+            match models::Notification::process_pending_notifications().await {
+                Ok(count) if count > 0 => {
+                    tracing::info!("Processed {} pending notifications", count);
+                }
+                Ok(_) => {
+                    // No notifications to process - keep quiet to avoid spam
+                }
+                Err(e) => {
+                    tracing::error!("Failed to process pending notifications: {}", e);
+                }
+            }
+        }
+    });
+
     // Create router
     let app = Router::new()
         // API routes
@@ -135,6 +162,12 @@ async fn main() {
         .route("/api/ibd-matrix", post(api::explore::compute_ibd_matrix))
         .route("/api/ibd-matrix-asymmetric", post(api::explore::compute_asymmetric_ibd_matrix))
         .route("/api/citations", get(api::publication::get_citations))
+        // Notification routes
+        .route("/api/notifications", get(api::notifications::get_notifications))
+        .route("/api/notifications/unread-count", get(api::notifications::get_unread_count))
+        .route("/api/notifications/mark-read", post(api::notifications::mark_as_read))
+        .route("/api/notifications/mark-all-read", post(api::notifications::mark_all_as_read))
+        .route("/api/notifications/process-pending", post(api::notifications::process_pending_notifications))
         // Static file serving for frontend
         .fallback_service(ServeDir::new("frontend/build"))
         // Middleware
