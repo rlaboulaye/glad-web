@@ -156,6 +156,7 @@
 				<IBDVisualization 
 					bind:this={ibdComponent}
 					{availableFields}
+					bind:selectedFields
 					{Plotly}
 					isActive={activeTab === 'ibd'}
 					bind:queryGroupsUpdateTrigger={ibdQueryGroupsTrigger}

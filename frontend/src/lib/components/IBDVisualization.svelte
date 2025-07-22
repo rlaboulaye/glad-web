@@ -3,11 +3,11 @@
 
 	// Props
 	export let availableFields: string[];
+	export let selectedFields: Set<string>; // Shared field selections like PCA
 	export let Plotly: any = null;
 	export let isActive: boolean = false;
 
-	// IBD grouping fields
-	let ibdSelectedFields = new Set(['ibd_community']); // Default to ibd_community
+	// IBD grouping fields (asymmetric mode only - symmetric uses shared selectedFields)
 	let asymmetricMode = false; // Toggle for asymmetric heatmap
 	let ibdXFields = new Set(['ibd_community']); // X-axis fields for asymmetric mode
 	let ibdYFields = new Set(['ibd_community']); // Y-axis fields for asymmetric mode
@@ -28,15 +28,16 @@
 	let selectedYGroups = new Set<string>();
 
 	function toggleIbdField(field: string) {
-		if (ibdSelectedFields.has(field)) {
-			ibdSelectedFields = new Set([...ibdSelectedFields].filter(f => f !== field));
+		if (selectedFields.has(field)) {
+			selectedFields.delete(field);
 		} else {
-			ibdSelectedFields = new Set([field, ...ibdSelectedFields]);
+			selectedFields.add(field);
 		}
+		selectedFields = selectedFields; // Trigger reactivity
 		// Reset groups when grouping changes
 		ibdGroups = [];
 		selectedGroups = new Set();
-		if (ibdSelectedFields.size > 0) {
+		if (selectedFields.size > 0) {
 			loadIbdGroups();
 		}
 	}
@@ -46,8 +47,8 @@
 		
 		if (asymmetricMode) {
 			// Copy current symmetric fields to both X and Y
-			ibdXFields = new Set(ibdSelectedFields);
-			ibdYFields = new Set(ibdSelectedFields);
+			ibdXFields = new Set(selectedFields);
+			ibdYFields = new Set(selectedFields);
 			// Reset groups
 			ibdXGroups = [];
 			ibdYGroups = [];
@@ -56,11 +57,12 @@
 			loadAsymmetricGroups();
 		} else {
 			// Copy current X axis fields to symmetric mode
-			ibdSelectedFields = new Set(ibdXFields);
+			selectedFields = new Set(ibdXFields);
+			selectedFields = selectedFields; // Trigger reactivity
 			// Reset groups
 			ibdGroups = [];
 			selectedGroups = new Set();
-			if (ibdSelectedFields.size > 0) {
+			if (selectedFields.size > 0) {
 				loadIbdGroups();
 			}
 		}
@@ -126,11 +128,11 @@
 
 	async function loadIbdGroups() {
 		// Don't load if no fields are selected
-		if (ibdSelectedFields.size === 0) return;
+		if (selectedFields.size === 0) return;
 		
 		try {
 			// Generate grouping parameter from selected fields
-			const orderedFields = availableFields.filter(f => ibdSelectedFields.has(f));
+			const orderedFields = availableFields.filter(f => selectedFields.has(f));
 			const grouping = orderedFields.join(',');
 			
 			const res = await fetch(`/api/ibd-groups?grouping=${encodeURIComponent(grouping)}&min_size=30`);
@@ -197,12 +199,12 @@
 	}
 
 	async function updateHeatmap() {
-		if (!selectedGroups.size || !Plotly || !heatmapDiv || ibdSelectedFields.size === 0) return;
+		if (!selectedGroups.size || !Plotly || !heatmapDiv || selectedFields.size === 0) return;
 
 		ibdLoading = true;
 		try {
 			// Generate grouping parameter from selected fields
-			const orderedFields = availableFields.filter(f => ibdSelectedFields.has(f));
+			const orderedFields = availableFields.filter(f => selectedFields.has(f));
 			const grouping = orderedFields.join(',');
 			
 			const res = await fetch('/api/ibd-matrix', {
@@ -448,23 +450,23 @@
 		}
 	}
 
-	// Load IBD groups when tab becomes active
-	$: if (isActive && !asymmetricMode && ibdGroups.length === 0) {
+	// Load IBD groups when tab becomes active (only if not loaded yet - for persistence)
+	$: if (isActive && !asymmetricMode && ibdGroups.length === 0 && selectedFields.size > 0) {
 		loadIbdGroups();
 	}
 
-	// Load asymmetric groups when tab becomes active in asymmetric mode  
-	$: if (isActive && asymmetricMode && (ibdXGroups.length === 0 || ibdYGroups.length === 0)) {
+	// Load asymmetric groups when tab becomes active in asymmetric mode (only if not loaded yet - for persistence)  
+	$: if (isActive && asymmetricMode && (ibdXGroups.length === 0 || ibdYGroups.length === 0) && (ibdXFields.size > 0 || ibdYFields.size > 0)) {
 		loadAsymmetricGroups();
 	}
 
-	// Update symmetric heatmap when selection or log scale changes
-	$: if (isActive && !asymmetricMode && selectedGroups.size > 0 && Plotly && heatmapDiv) {
+	// Update symmetric heatmap when selection or log scale changes (with persistence)
+	$: if (isActive && !asymmetricMode && selectedGroups.size > 0 && Plotly && heatmapDiv && ibdGroups.length > 0) {
 		setTimeout(() => updateHeatmap(), 100);
 	}
 
-	// Update asymmetric heatmap when selection changes
-	$: if (isActive && asymmetricMode && selectedXGroups.size > 0 && selectedYGroups.size > 0 && Plotly && heatmapDiv) {
+	// Update asymmetric heatmap when selection changes (with persistence)
+	$: if (isActive && asymmetricMode && selectedXGroups.size > 0 && selectedYGroups.size > 0 && Plotly && heatmapDiv && ibdXGroups.length > 0 && ibdYGroups.length > 0) {
 		setTimeout(() => updateAsymmetricHeatmap(), 100);
 	}
 	
@@ -493,7 +495,7 @@
 				{#each availableFields as field}
 					<button
 						class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
-							{ibdSelectedFields.has(field)
+							{selectedFields.has(field)
 								? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
 								: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
 						title={getFieldTooltip(field)}
@@ -551,7 +553,7 @@
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 	<!-- IBD Controls -->
 	<div class="space-y-6">
-		{#if (!asymmetricMode && ibdSelectedFields.size === 0) || (asymmetricMode && (ibdXFields.size === 0 || ibdYFields.size === 0))}
+		{#if (!asymmetricMode && selectedFields.size === 0) || (asymmetricMode && (ibdXFields.size === 0 || ibdYFields.size === 0))}
 			<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
 				<div class="text-center">
 					<div class="text-3xl mb-2">🏷️</div>
