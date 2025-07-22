@@ -9,6 +9,12 @@
 	let Plotly: any;
 	let loading = true;
 	
+	// Track current plot state to optimize updates
+	let currentPcX = -1;
+	let currentPcY = -1;
+	let currentSelectedFields = new Set<string>();
+	let plotInitialized = false;
+	
 	// Visualization type selection
 	let activeTab = 'pca'; // 'pca' or 'ibd'
 
@@ -118,6 +124,60 @@
 		// Always order selectedFields by their order in availableFields
 		const orderedFields = availableFields.filter(f => selectedFields.has(f));
 
+		// Check if we need full re-render or can use partial update
+		const fieldsChanged = !setsEqual(selectedFields, currentSelectedFields);
+		const axesChanged = pcX !== currentPcX || pcY !== currentPcY;
+		const needsFullRender = !plotInitialized || fieldsChanged;
+
+		if (needsFullRender) {
+			// Full re-render needed - grouping changed
+			createFullPlot(orderedFields);
+		} else if (axesChanged) {
+			// Only axes changed - use restyle for better performance
+			updatePlotAxes(orderedFields);
+		}
+		
+		// Update tracking variables
+		currentPcX = pcX;
+		currentPcY = pcY;
+		currentSelectedFields = new Set(selectedFields);
+		plotInitialized = true;
+	}
+
+	function createFullPlot(orderedFields: string[]) {
+		const { traces, layout } = generatePlotData(orderedFields);
+		
+		Plotly.newPlot(plotDiv, traces, layout, {
+			responsive: true,
+			displayModeBar: true,
+			modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d'],
+			displaylogo: false
+		});
+	}
+
+	function updatePlotAxes(orderedFields: string[]) {
+		const { traces, layout } = generatePlotData(orderedFields);
+		
+		// Update just the data and axes using restyle/relayout for better performance
+		const updateData = {
+			x: traces.map(trace => trace.x),
+			y: traces.map(trace => trace.y)
+		};
+		
+		const updateLayout = {
+			'title.text': layout.title.text,
+			'xaxis.title': layout.xaxis.title,
+			'yaxis.title': layout.yaxis.title
+		};
+		
+		// Use Promise.all for concurrent updates
+		Promise.all([
+			Plotly.restyle(plotDiv, updateData),
+			Plotly.relayout(plotDiv, updateLayout)
+		]);
+	}
+
+	function generatePlotData(orderedFields: string[]) {
 		const grouped = new Map<string, any[]>();
 
 		for (const d of data) {
@@ -138,7 +198,7 @@
 			y: group.map(d => d.pc[pcY]),
 			text: group.map(d => d.id),
 			mode: 'markers',
-			type: 'scatter',
+			type: 'scattergl',
 			name: `(${group.length}) ${key}`,
 			marker: {
 				size: 6,
@@ -186,12 +246,12 @@
 			}
 		};
 
-		Plotly.newPlot(plotDiv, traces, layout, {
-			responsive: true,
-			displayModeBar: true,
-			modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d'],
-			displaylogo: false
-		});
+		return { traces, layout };
+	}
+
+	// Helper function to compare sets for equality
+	function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+		return a.size === b.size && [...a].every(x => b.has(x));
 	}
 
 	// IBD Heatmap functions
