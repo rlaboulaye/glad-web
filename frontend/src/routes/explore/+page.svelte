@@ -484,6 +484,28 @@
 		console.log('Submit Query clicked for group:', selectedQueryGroup);
 	}
 
+	// Get tooltip text for metadata fields
+	function getFieldTooltip(field: string): string {
+		switch (field) {
+			case 'phs':
+				return 'Unique identifier assigned to a phenotype study by dbGaP';
+			case 'country':
+				return 'Country where the sample was taken';
+			case 'region':
+				return 'Region where the sample was taken';
+			case 'sex':
+				return 'Reported sex of sample';
+			case 'ethnicity':
+				return 'One of ["Hispanic", "NotHispanic", "NativeAmerican"]';
+			case 'self_described':
+				return 'True if sample self-reported as "Hispanic"';
+			case 'ibd_community':
+				return 'Community assignment produced by running Infomap on total pairwise IBD between samples';
+			default:
+				return '';
+		}
+	}
+
 	// Load IBD groups when tab becomes active
 	$: if (activeTab === 'ibd' && !asymmetricMode && ibdGroups.length === 0) {
 		loadIbdGroups();
@@ -685,6 +707,7 @@
 											{selectedFields.has(field)
 												? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
 												: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+										title={getFieldTooltip(field)}
 										on:click={() => toggleField(field)}
 									>
 										{field}
@@ -763,6 +786,7 @@
 											{ibdSelectedFields.has(field)
 												? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
 												: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+										title={getFieldTooltip(field)}
 										on:click={() => toggleIbdField(field)}
 									>
 										{field}
@@ -782,6 +806,7 @@
 													{ibdXFields.has(field)
 														? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
 														: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+												title={getFieldTooltip(field)}
 												on:click={() => toggleIbdXField(field)}
 											>
 												{field}
@@ -800,6 +825,7 @@
 													{ibdYFields.has(field)
 														? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
 														: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+												title={getFieldTooltip(field)}
 												on:click={() => toggleIbdYField(field)}
 											>
 												{field}
