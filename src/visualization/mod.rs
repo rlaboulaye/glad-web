@@ -22,22 +22,21 @@ const IBD_MATRIX_PATH: &str = "data/visualization_data/clust_all_mat.mtx";
 /// Canonical order for grouping fields (ensures consistent cache keys)
 /// Matches frontend field order for consistency
 const CANONICAL_FIELD_ORDER: &[&str] = &[
-    "phs", 
-    "country", 
-    "region", 
-    "sex", 
-    "ethnicity", 
-    "self_described", 
-    "ibd_community"
+    "phs",
+    "country",
+    "region",
+    "sex",
+    "ethnicity",
+    "self_described",
+    "ibd_community",
 ];
 
 /// Minimum group size for privacy protection
 const MIN_GROUP_SIZE: usize = 30;
 
-
 /// Global visualization cache instance
-pub static VISUALIZATION_CACHE: Lazy<VisualizationCache> = Lazy::new(|| {
-    match VisualizationCache::new() {
+pub static VISUALIZATION_CACHE: Lazy<VisualizationCache> =
+    Lazy::new(|| match VisualizationCache::new() {
         Ok(cache) => {
             info!("Visualization cache initialized successfully");
             cache
@@ -46,8 +45,7 @@ pub static VISUALIZATION_CACHE: Lazy<VisualizationCache> = Lazy::new(|| {
             error!("Failed to initialize visualization cache: {:?}", e);
             panic!("Could not initialize visualization cache: {:?}", e);
         }
-    }
-});
+    });
 
 /// Main visualization cache structure
 pub struct VisualizationCache {
@@ -123,7 +121,7 @@ impl VisualizationCache {
     /// Initialize the visualization cache
     pub fn new() -> Result<Self, ApiError> {
         info!("Initializing visualization cache...");
-        
+
         let mut cache = VisualizationCache {
             individual_to_index: HashMap::new(),
             community_to_individuals: HashMap::new(),
@@ -137,64 +135,74 @@ impl VisualizationCache {
 
         // Load and merge PCA + IBD data
         cache.load_and_merge_individual_data()?;
-        
+
         // Load sparse matrix
         cache.load_ibd_matrix()?;
-        
+
         // Pre-compute and sort communities by size
         cache.compute_communities_by_size();
-        
-        info!("Visualization cache initialized with {} individuals and {} communities", 
-              cache.individual_to_index.len(), 
-              cache.communities_by_size.len());
-        
+
+        info!(
+            "Visualization cache initialized with {} individuals and {} communities",
+            cache.individual_to_index.len(),
+            cache.communities_by_size.len()
+        );
+
         Ok(cache)
     }
 
     /// Load and merge PCA and IBD data
     fn load_and_merge_individual_data(&mut self) -> Result<(), ApiError> {
         info!("Loading and merging PCA and IBD data...");
-        
-        // Step 1: Load PCA data
-        let pca_content = std::fs::read_to_string(PCA_DATA_PATH)
-            .map_err(|e| {
-                error!("Failed to read PCA file {}: {}", PCA_DATA_PATH, e);
-                ApiError::InternalServerError
-            })?;
 
-        let pca_data: Vec<serde_json::Value> = serde_json::from_str(&pca_content)
-            .map_err(|e| {
-                error!("Failed to parse PCA JSON: {}", e);
-                ApiError::InternalServerError
-            })?;
+        // Step 1: Load PCA data
+        let pca_content = std::fs::read_to_string(PCA_DATA_PATH).map_err(|e| {
+            error!("Failed to read PCA file {}: {}", PCA_DATA_PATH, e);
+            ApiError::InternalServerError
+        })?;
+
+        let pca_data: Vec<serde_json::Value> = serde_json::from_str(&pca_content).map_err(|e| {
+            error!("Failed to parse PCA JSON: {}", e);
+            ApiError::InternalServerError
+        })?;
 
         // Create individuals from PCA data
         let mut individuals_map: HashMap<String, Individual> = HashMap::new();
-        
+
         for item in pca_data {
             if let (Some(id), Some(pc_array)) = (
                 item.get("id").and_then(|v| v.as_str()),
-                item.get("pc").and_then(|v| v.as_array())
+                item.get("pc").and_then(|v| v.as_array()),
             ) {
-                let pc: Vec<f64> = pc_array.iter()
-                    .filter_map(|v| v.as_f64())
-                    .collect();
-                
+                let pc: Vec<f64> = pc_array.iter().filter_map(|v| v.as_f64()).collect();
+
                 let individual = Individual {
                     id: id.to_string(),
                     pc,
-                    country: item.get("country").and_then(|v| v.as_str()).map(String::from),
-                    ethnicity: item.get("ethnicity").and_then(|v| v.as_str()).map(String::from),
-                    region: item.get("region").and_then(|v| v.as_str()).map(String::from),
+                    country: item
+                        .get("country")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    ethnicity: item
+                        .get("ethnicity")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    region: item
+                        .get("region")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                     sex: item.get("sex").and_then(|v| v.as_str()).map(String::from),
                     phs: item.get("phs").and_then(|v| v.as_str()).map(String::from),
-                    self_described: item.get("self_described").and_then(|v| v.as_str()).map(String::from),
+                    self_described: item
+                        .get("self_described")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                     project: None,
                     ibd_community: None,
                     glad_status: None,
                     ibd_matrix_index: None,
                 };
-                
+
                 individuals_map.insert(id.to_string(), individual);
             }
         }
@@ -202,11 +210,13 @@ impl VisualizationCache {
         info!("Loaded {} individuals from PCA data", individuals_map.len());
 
         // Step 2: Load IBD data and merge additional fields
-        let ibd_content = std::fs::read_to_string(IBD_COMMUNITIES_PATH)
-            .map_err(|e| {
-                error!("Failed to read IBD TSV file {}: {}", IBD_COMMUNITIES_PATH, e);
-                ApiError::InternalServerError
-            })?;
+        let ibd_content = std::fs::read_to_string(IBD_COMMUNITIES_PATH).map_err(|e| {
+            error!(
+                "Failed to read IBD TSV file {}: {}",
+                IBD_COMMUNITIES_PATH, e
+            );
+            ApiError::InternalServerError
+        })?;
 
         let mut csv_reader = csv::ReaderBuilder::new()
             .delimiter(b'\t')
@@ -246,13 +256,16 @@ impl VisualizationCache {
 
         // Step 3: Build final data structures
         self.individuals = individuals_map.into_values().collect();
-        
+
         // Build index mappings
         for (array_index, individual) in self.individuals.iter().enumerate() {
-            self.individual_to_index.insert(individual.id.clone(), array_index);
+            self.individual_to_index
+                .insert(individual.id.clone(), array_index);
 
             // Build community mappings using IBD matrix indices (not array indices)
-            if let (Some(community_id), Some(ibd_matrix_index)) = (individual.ibd_community, individual.ibd_matrix_index) {
+            if let (Some(community_id), Some(ibd_matrix_index)) =
+                (individual.ibd_community, individual.ibd_matrix_index)
+            {
                 self.community_to_individuals
                     .entry(community_id)
                     .or_insert_with(Vec::new)
@@ -260,33 +273,30 @@ impl VisualizationCache {
             }
         }
 
-        info!("Merged data for {} individuals with {} IBD communities", 
-              self.individuals.len(), 
-              self.community_to_individuals.len());
+        info!(
+            "Merged data for {} individuals with {} IBD communities",
+            self.individuals.len(),
+            self.community_to_individuals.len()
+        );
 
-        // Debug: Check community 212 indices
-        if let Some(community_212_indices) = self.community_to_individuals.get(&212) {
-            info!("Community 212 has {} individuals with IBD matrix indices: {:?}", 
-                  community_212_indices.len(), 
-                  &community_212_indices[0..std::cmp::min(10, community_212_indices.len())]);
-        }
-        
         Ok(())
     }
 
     /// Load the sparse IBD matrix
     fn load_ibd_matrix(&mut self) -> Result<(), ApiError> {
         info!("Loading sparse IBD matrix...");
-        
-        let file = File::open(IBD_MATRIX_PATH)
-            .map_err(|e| {
-                error!("Failed to open matrix file {}: {}", IBD_MATRIX_PATH, e);
-                ApiError::InternalServerError
-            })?;
+
+        let file = File::open(IBD_MATRIX_PATH).map_err(|e| {
+            error!("Failed to open matrix file {}: {}", IBD_MATRIX_PATH, e);
+            ApiError::InternalServerError
+        })?;
 
         let mut buf_reader = BufReader::new(file);
-        
-        let matrix: TriMatI<f32, usize> = sprs::io::read_matrix_market_from_bufread::<f32, usize, BufReader<File>>(&mut buf_reader)
+
+        let matrix: TriMatI<f32, usize> =
+            sprs::io::read_matrix_market_from_bufread::<f32, usize, BufReader<File>>(
+                &mut buf_reader,
+            )
             .map_err(|e| {
                 error!("Failed to load matrix from {}: {}", IBD_MATRIX_PATH, e);
                 ApiError::InternalServerError
@@ -294,19 +304,21 @@ impl VisualizationCache {
 
         // Convert to CsMat for efficient operations
         let csr_matrix = matrix.to_csr();
-        
+
         // Pre-compute transposed matrix for optimization
         info!("Computing transposed matrix for optimization...");
         let transposed_matrix = csr_matrix.clone().transpose_into();
-        
+
         self.ibd_matrix = Some(csr_matrix);
         self.ibd_matrix_t = Some(transposed_matrix);
-        
-        info!("Loaded {}x{} sparse matrix with {} non-zero entries", 
-              self.ibd_matrix.as_ref().unwrap().rows(),
-              self.ibd_matrix.as_ref().unwrap().cols(),
-              self.ibd_matrix.as_ref().unwrap().nnz());
-        
+
+        info!(
+            "Loaded {}x{} sparse matrix with {} non-zero entries",
+            self.ibd_matrix.as_ref().unwrap().rows(),
+            self.ibd_matrix.as_ref().unwrap().cols(),
+            self.ibd_matrix.as_ref().unwrap().nnz()
+        );
+
         Ok(())
     }
 
@@ -328,8 +340,9 @@ impl VisualizationCache {
     /// Pre-compute and sort communities by size (largest first)
     fn compute_communities_by_size(&mut self) {
         info!("Pre-computing community size rankings...");
-        
-        self.communities_by_size = self.community_to_individuals
+
+        self.communities_by_size = self
+            .community_to_individuals
             .iter()
             .map(|(&id, individuals)| CommunityInfo {
                 id,
@@ -339,8 +352,11 @@ impl VisualizationCache {
 
         // Sort by size in descending order (largest first)
         self.communities_by_size.sort_by(|a, b| b.size.cmp(&a.size));
-        
-        info!("Sorted {} communities by size", self.communities_by_size.len());
+
+        info!(
+            "Sorted {} communities by size",
+            self.communities_by_size.len()
+        );
     }
 
     /// Generate groups based on field combinations with early pruning
@@ -366,7 +382,10 @@ impl VisualizationCache {
                 if let Some(group_key) = self.create_group_key(individual, fields) {
                     // Only include individuals that have IBD matrix indices
                     if let Some(ibd_matrix_index) = individual.ibd_matrix_index {
-                        group_map.entry(group_key).or_insert_with(Vec::new).push(ibd_matrix_index);
+                        group_map
+                            .entry(group_key)
+                            .or_insert_with(Vec::new)
+                            .push(ibd_matrix_index);
                     }
                 }
                 // If create_group_key returns None, individual is automatically excluded
@@ -386,12 +405,16 @@ impl VisualizationCache {
 
         // Sort by size (largest first)
         groups.sort_by(|a, b| b.size.cmp(&a.size));
-        
+
         groups
     }
 
     /// Pre-filter field values that have enough individuals to potentially meet min_size
-    fn pre_filter_field_values(&self, fields: &[String], min_size: usize) -> HashMap<String, HashSet<String>> {
+    fn pre_filter_field_values(
+        &self,
+        fields: &[String],
+        min_size: usize,
+    ) -> HashMap<String, HashSet<String>> {
         let mut field_value_counts: HashMap<String, HashMap<String, usize>> = HashMap::new();
 
         // Count occurrences of each field value
@@ -427,7 +450,7 @@ impl VisualizationCache {
         &self,
         individual: &Individual,
         fields: &[String],
-        valid_field_values: &HashMap<String, HashSet<String>>
+        valid_field_values: &HashMap<String, HashSet<String>>,
     ) -> bool {
         fields.iter().all(|field| {
             if let Some(value) = self.get_field_value(individual, field) {
@@ -446,11 +469,12 @@ impl VisualizationCache {
     /// Returns None if any required field is missing
     fn create_group_key(&self, individual: &Individual, fields: &[String]) -> Option<String> {
         // Use canonical order to ensure consistent cache keys
-        let ordered_fields: Option<Vec<String>> = CANONICAL_FIELD_ORDER.iter()
+        let ordered_fields: Option<Vec<String>> = CANONICAL_FIELD_ORDER
+            .iter()
             .filter(|field| fields.contains(&field.to_string()))
             .map(|field| self.get_field_value(individual, field))
             .collect();
-        
+
         ordered_fields.map(|fields| fields.join(" | "))
     }
 
@@ -464,53 +488,64 @@ impl VisualizationCache {
             "ethnicity" => individual.ethnicity.clone(),
             "self_described" => individual.self_described.clone(),
             "ibd_community" => individual.ibd_community.map(|c| c.to_string()),
-            _ => None,  // Reject non-canonical fields
+            _ => None, // Reject non-canonical fields
         }
     }
 
     /// Compute mean pairwise IBD matrix between groups using spawn_blocking
-    pub async fn compute_group_ibd_matrix(&self, groups: &[Group]) -> Result<ComputedMatrix, ApiError> {
+    pub async fn compute_group_ibd_matrix(
+        &self,
+        groups: &[Group],
+    ) -> Result<ComputedMatrix, ApiError> {
         ibd::IbdComputation::compute_group_ibd_matrix(groups).await
     }
 
-    pub async fn compute_asymmetric_group_ibd_matrix(&self, row_groups: &[Group], column_groups: &[Group]) -> Result<ComputedMatrix, ApiError> {
+    pub async fn compute_asymmetric_group_ibd_matrix(
+        &self,
+        row_groups: &[Group],
+        column_groups: &[Group],
+    ) -> Result<ComputedMatrix, ApiError> {
         ibd::IbdComputation::compute_asymmetric_group_ibd_matrix(row_groups, column_groups).await
     }
 
     /// Validate and parse grouping fields
     fn validate_and_parse_fields(&self, grouping: &str) -> Result<Vec<String>, ApiError> {
-        let fields: Vec<String> = grouping
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .collect();
-        
+        let fields: Vec<String> = grouping.split(',').map(|s| s.trim().to_string()).collect();
+
         // Validate all fields are canonical
         for field in &fields {
             if !CANONICAL_FIELD_ORDER.contains(&field.as_str()) {
-                return Err(ApiError::ValidationError(
-                    format!("Invalid grouping field: '{}'. Valid fields are: {}", 
-                           field, CANONICAL_FIELD_ORDER.join(", "))
-                ));
+                return Err(ApiError::ValidationError(format!(
+                    "Invalid grouping field: '{}'. Valid fields are: {}",
+                    field,
+                    CANONICAL_FIELD_ORDER.join(", ")
+                )));
             }
         }
-        
+
         Ok(fields)
     }
 
     /// Get IBD groups with validation and processing
-    pub async fn get_ibd_groups(&self, grouping: String, min_size: Option<usize>) -> Result<serde_json::Value, ApiError> {
-        
+    pub async fn get_ibd_groups(
+        &self,
+        grouping: String,
+        min_size: Option<usize>,
+    ) -> Result<serde_json::Value, ApiError> {
         let fields = self.validate_and_parse_fields(&grouping)?;
         let min_size = min_size.unwrap_or(MIN_GROUP_SIZE);
         let groups = self.generate_groups_with_min_size(&fields, min_size);
-        
-        let filtered_groups: Vec<_> = groups.into_iter()
-            .map(|group| serde_json::json!({
-                "label": group.label,
-                "size": group.size
-            }))
+
+        let filtered_groups: Vec<_> = groups
+            .into_iter()
+            .map(|group| {
+                serde_json::json!({
+                    "label": group.label,
+                    "size": group.size
+                })
+            })
             .collect();
-        
+
         Ok(serde_json::json!({
             "groups": filtered_groups,
             "grouping": grouping,
@@ -520,34 +555,40 @@ impl VisualizationCache {
     }
 
     /// Compute IBD matrix with validation and processing
-    pub async fn get_ibd_matrix(&self, grouping: String, selected_groups: Vec<String>) -> Result<serde_json::Value, ApiError> {
-        
+    pub async fn get_ibd_matrix(
+        &self,
+        grouping: String,
+        selected_groups: Vec<String>,
+    ) -> Result<serde_json::Value, ApiError> {
         let fields = self.validate_and_parse_fields(&grouping)?;
-        
+
         // Generate all groups to find the selected ones
         let all_groups = self.generate_groups_with_min_size(&fields, MIN_GROUP_SIZE);
-        let selected_groups_data: Vec<_> = all_groups.into_iter()
+        let selected_groups_data: Vec<_> = all_groups
+            .into_iter()
             .filter(|group| selected_groups.contains(&group.label))
             .collect();
-        
+
         // Validate all selected groups exist
         if selected_groups_data.len() != selected_groups.len() {
-            return Err(ApiError::ValidationError("One or more selected groups do not exist".to_string()));
+            return Err(ApiError::ValidationError(
+                "One or more selected groups do not exist".to_string(),
+            ));
         }
-        
+
         // Double-check minimum group size for privacy protection
         for group in &selected_groups_data {
             if group.size < MIN_GROUP_SIZE {
-                return Err(ApiError::ValidationError(
-                    format!("Group '{}' has {} individuals, minimum is {}", 
-                           group.label, group.size, MIN_GROUP_SIZE)
-                ));
+                return Err(ApiError::ValidationError(format!(
+                    "Group '{}' has {} individuals, minimum is {}",
+                    group.label, group.size, MIN_GROUP_SIZE
+                )));
             }
         }
-        
+
         // Compute IBD matrix
         let computed_matrix = self.compute_group_ibd_matrix(&selected_groups_data).await?;
-        
+
         Ok(serde_json::json!({
             "matrix": computed_matrix.matrix,
             "group_labels": computed_matrix.group_labels,
@@ -558,61 +599,68 @@ impl VisualizationCache {
 
     /// Compute asymmetric IBD matrix with different row and column groupings
     pub async fn get_asymmetric_ibd_matrix(
-        &self, 
-        row_grouping: String, 
-        column_grouping: String, 
-        selected_row_groups: Vec<String>, 
-        selected_column_groups: Vec<String>
+        &self,
+        row_grouping: String,
+        column_grouping: String,
+        selected_row_groups: Vec<String>,
+        selected_column_groups: Vec<String>,
     ) -> Result<serde_json::Value, ApiError> {
-        
         // Validate and parse both grouping fields
         let row_fields = self.validate_and_parse_fields(&row_grouping)?;
         let column_fields = self.validate_and_parse_fields(&column_grouping)?;
-        
+
         // Generate all groups for both axes
         let all_row_groups = self.generate_groups_with_min_size(&row_fields, MIN_GROUP_SIZE);
         let all_column_groups = self.generate_groups_with_min_size(&column_fields, MIN_GROUP_SIZE);
-        
+
         // Find selected groups
-        let selected_row_groups_data: Vec<_> = all_row_groups.into_iter()
+        let selected_row_groups_data: Vec<_> = all_row_groups
+            .into_iter()
             .filter(|group| selected_row_groups.contains(&group.label))
             .collect();
-        let selected_column_groups_data: Vec<_> = all_column_groups.into_iter()
+        let selected_column_groups_data: Vec<_> = all_column_groups
+            .into_iter()
             .filter(|group| selected_column_groups.contains(&group.label))
             .collect();
-        
+
         // Validate all selected groups exist
         if selected_row_groups_data.len() != selected_row_groups.len() {
-            return Err(ApiError::ValidationError("One or more selected row groups do not exist".to_string()));
+            return Err(ApiError::ValidationError(
+                "One or more selected row groups do not exist".to_string(),
+            ));
         }
         if selected_column_groups_data.len() != selected_column_groups.len() {
-            return Err(ApiError::ValidationError("One or more selected column groups do not exist".to_string()));
+            return Err(ApiError::ValidationError(
+                "One or more selected column groups do not exist".to_string(),
+            ));
         }
-        
+
         // Double-check minimum group size for privacy protection
         for group in &selected_row_groups_data {
             if group.size < MIN_GROUP_SIZE {
-                return Err(ApiError::ValidationError(
-                    format!("Row group '{}' has {} individuals, minimum is {}", 
-                           group.label, group.size, MIN_GROUP_SIZE)
-                ));
+                return Err(ApiError::ValidationError(format!(
+                    "Row group '{}' has {} individuals, minimum is {}",
+                    group.label, group.size, MIN_GROUP_SIZE
+                )));
             }
         }
         for group in &selected_column_groups_data {
             if group.size < MIN_GROUP_SIZE {
-                return Err(ApiError::ValidationError(
-                    format!("Column group '{}' has {} individuals, minimum is {}", 
-                           group.label, group.size, MIN_GROUP_SIZE)
-                ));
+                return Err(ApiError::ValidationError(format!(
+                    "Column group '{}' has {} individuals, minimum is {}",
+                    group.label, group.size, MIN_GROUP_SIZE
+                )));
             }
         }
-        
+
         // Compute asymmetric IBD matrix
-        let computed_matrix = self.compute_asymmetric_group_ibd_matrix(
-            &selected_row_groups_data, 
-            &selected_column_groups_data
-        ).await?;
-        
+        let computed_matrix = self
+            .compute_asymmetric_group_ibd_matrix(
+                &selected_row_groups_data,
+                &selected_column_groups_data,
+            )
+            .await?;
+
         Ok(serde_json::json!({
             "matrix": computed_matrix.matrix,
             "group_labels": computed_matrix.group_labels,  // Column group labels
@@ -624,3 +672,4 @@ impl VisualizationCache {
         }))
     }
 }
+

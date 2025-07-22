@@ -36,6 +36,10 @@
 	let selectedXGroups = new Set<string>();
 	let selectedYGroups = new Set<string>();
 
+	// Submit Query section state
+	let selectedQueryGroup = '';
+	let isSubmitDisabled = true;
+
 	// Reactive statement to update plot when loading completes
 	$: if (!loading && data.length && Plotly && plotDiv) {
 		setTimeout(() => updatePlot(), 100);
@@ -467,6 +471,12 @@
 		});
 	}
 
+	// Submit Query function (placeholder)
+	function submitQuery() {
+		// TODO: Implement submit query functionality
+		console.log('Submit Query clicked for group:', selectedQueryGroup);
+	}
+
 	// Load IBD groups when tab becomes active
 	$: if (activeTab === 'ibd' && !asymmetricMode && ibdGroups.length === 0) {
 		loadIbdGroups();
@@ -490,6 +500,68 @@
 	// Re-render heatmap when log scale toggle changes
 	$: if (activeTab === 'ibd' && heatmapData && Plotly && heatmapDiv && logScale !== undefined) {
 		setTimeout(() => renderHeatmap(), 100);
+	}
+
+	// Reactive: Generate available groups for Query dropdown
+	$: availableQueryGroups = (() => {
+		if (activeTab === 'pca') {
+			// For PCA: extract groups from legend (same logic as updatePlot)
+			if (!data.length) return [];
+			
+			const orderedFields = availableFields.filter(f => selectedFields.has(f));
+			const grouped = new Map<string, any[]>();
+			
+			for (const d of data) {
+				const key = orderedFields.length > 0
+					? orderedFields.map(f => d[f] ?? 'Unknown').join(' | ')
+					: 'All';
+				if (!grouped.has(key)) grouped.set(key, []);
+				grouped.get(key)!.push(d);
+			}
+			
+			// Return groups sorted by size (descending) with group name and count
+			return Array.from(grouped.entries())
+				.sort((a, b) => b[1].length - a[1].length)
+				.map(([key, group]) => `(${group.length}) ${key}`);
+		} else if (activeTab === 'ibd') {
+			// For IBD: combine selected groups from current mode and sort by size
+			if (asymmetricMode) {
+				// Combine X and Y groups, remove duplicates, sort by size
+				const allGroups = new Set([...selectedXGroups, ...selectedYGroups]);
+				const groupsArray = Array.from(allGroups);
+				
+				// Create a map to get group sizes for sorting
+				const groupSizeMap = new Map();
+				ibdXGroups.forEach(g => groupSizeMap.set(g.label, g.size));
+				ibdYGroups.forEach(g => groupSizeMap.set(g.label, g.size));
+				
+				return groupsArray.sort((a, b) => {
+					const sizeA = groupSizeMap.get(a) || 0;
+					const sizeB = groupSizeMap.get(b) || 0;
+					return sizeB - sizeA; // Sort by size descending
+				});
+			} else {
+				// Use symmetric selected groups, sort by size
+				const groupsArray = Array.from(selectedGroups);
+				const groupSizeMap = new Map(ibdGroups.map(g => [g.label, g.size]));
+				
+				return groupsArray.sort((a, b) => {
+					const sizeA = groupSizeMap.get(a) || 0;
+					const sizeB = groupSizeMap.get(b) || 0;
+					return sizeB - sizeA; // Sort by size descending
+				});
+			}
+		}
+		return [];
+	})();
+
+	// Reactive: Update submit button state and reset selection when groups change
+	$: {
+		isSubmitDisabled = !selectedQueryGroup || !availableQueryGroups.includes(selectedQueryGroup);
+		// Reset selection if current selection is no longer available
+		if (selectedQueryGroup && !availableQueryGroups.includes(selectedQueryGroup)) {
+			selectedQueryGroup = '';
+		}
 	}
 
 	onMount(async () => {
@@ -617,8 +689,46 @@
 				</div>
 
 				<!-- PCA Plot container -->
-				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 					<div bind:this={plotDiv} class="w-full h-[600px] md:h-[700px] lg:h-[750px]"></div>
+				</div>
+
+				<!-- Submit Query for Group Summary Data -->
+				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+					<div class="space-y-4">
+						<h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Submit Query for Group Summary Data</h3>
+						
+						<div class="flex items-end space-x-4">
+							<div class="flex-1">
+								<label for="pca-group-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+									Select Group:
+								</label>
+								<select 
+									id="pca-group-select"
+									bind:value={selectedQueryGroup}
+									class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+								>
+									<option value="">Choose a group...</option>
+									{#each availableQueryGroups as group}
+										<option value={group}>{group}</option>
+									{/each}
+								</select>
+							</div>
+							
+							<div class="flex-shrink-0">
+								<button
+									class="px-6 py-3 text-sm font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500
+										{isSubmitDisabled 
+											? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed' 
+											: 'bg-indigo-600 text-white hover:bg-indigo-700'}"
+									disabled={isSubmitDisabled}
+									on:click={submitQuery}
+								>
+									Submit
+								</button>
+							</div>
+						</div>
+					</div>
 				</div>
 			{/if}
 
@@ -905,7 +1015,7 @@
 				</div>
 
 				<!-- IBD Heatmap container -->
-				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 					{#if (!asymmetricMode && selectedGroups.size === 0) || (asymmetricMode && (selectedXGroups.size === 0 || selectedYGroups.size === 0))}
 						<div class="w-full h-[600px] md:h-[700px] lg:h-[750px] flex items-center justify-center">
 							<div class="text-center">
@@ -919,6 +1029,44 @@
 					{:else}
 						<div bind:this={heatmapDiv} class="w-full h-[600px] md:h-[700px] lg:h-[750px]"></div>
 					{/if}
+				</div>
+
+				<!-- Submit Query for Group Summary Data -->
+				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+					<div class="space-y-4">
+						<h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Submit Query for Group Summary Data</h3>
+						
+						<div class="flex items-end space-x-4">
+							<div class="flex-1">
+								<label for="ibd-group-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+									Select Group:
+								</label>
+								<select 
+									id="ibd-group-select"
+									bind:value={selectedQueryGroup}
+									class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+								>
+									<option value="">Choose a group...</option>
+									{#each availableQueryGroups as group}
+										<option value={group}>{group}</option>
+									{/each}
+								</select>
+							</div>
+							
+							<div class="flex-shrink-0">
+								<button
+									class="px-6 py-3 text-sm font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500
+										{isSubmitDisabled 
+											? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed' 
+											: 'bg-indigo-600 text-white hover:bg-indigo-700'}"
+									disabled={isSubmitDisabled}
+									on:click={submitQuery}
+								>
+									Submit
+								</button>
+							</div>
+						</div>
+					</div>
 				</div>
 			{/if}
 		{/if}

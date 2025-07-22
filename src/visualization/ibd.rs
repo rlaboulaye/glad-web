@@ -1,12 +1,12 @@
 // IBD matrix computation and aggregation functions
 
-use sprs::CsMat;
 use rayon::prelude::*;
+use sprs::CsMat;
 use std::collections::HashSet;
-use tracing::{info, error};
+use tracing::{error, info};
 
+use super::{ComputedMatrix, Group, VISUALIZATION_CACHE};
 use crate::api::ApiError;
-use super::{VISUALIZATION_CACHE, ComputedMatrix, Group};
 
 /// IBD matrix computation algorithms
 pub struct IbdComputation;
@@ -18,23 +18,29 @@ impl IbdComputation {
             return Err(ApiError::ValidationError("No groups provided".to_string()));
         }
 
-        let matrix = VISUALIZATION_CACHE.ibd_matrix.as_ref()
+        let matrix = VISUALIZATION_CACHE
+            .ibd_matrix
+            .as_ref()
             .ok_or_else(|| ApiError::InternalServerError)?;
 
         let n_groups = groups.len();
         let mut result_matrix: Vec<Vec<f32>> = vec![vec![0.0; n_groups]; n_groups];
         let mut pairs_to_compute: Vec<(usize, usize, String, String)> = Vec::new();
         let mut cache_hits = 0;
-        
+
         // Check cache for each pair and identify what needs to be computed
         {
-            let cache = VISUALIZATION_CACHE.computed_matrices.read()
+            let cache = VISUALIZATION_CACHE
+                .computed_matrices
+                .read()
                 .map_err(|_| ApiError::InternalServerError)?;
-            
+
             for i in 0..n_groups {
-                for j in i..n_groups { // Only compute upper triangle + diagonal
-                    let cache_key = Self::generate_pair_cache_key(&groups[i].label, &groups[j].label);
-                    
+                for j in i..n_groups {
+                    // Only compute upper triangle + diagonal
+                    let cache_key =
+                        Self::generate_pair_cache_key(&groups[i].label, &groups[j].label);
+
                     if let Some(cached_matrix) = cache.get(&cache_key) {
                         // Extract the single value from cached 1x1 or 2x2 matrix
                         let cached_value = if i == j {
@@ -42,7 +48,7 @@ impl IbdComputation {
                         } else {
                             cached_matrix.matrix[0][1] // Inter-group (off-diagonal of 2x2 matrix)
                         };
-                        
+
                         result_matrix[i][j] = cached_value;
                         if i != j {
                             result_matrix[j][i] = cached_value; // Symmetric
@@ -50,42 +56,57 @@ impl IbdComputation {
                         cache_hits += 1;
                     } else {
                         // Need to compute this pair
-                        pairs_to_compute.push((i, j, groups[i].label.clone(), groups[j].label.clone()));
+                        pairs_to_compute.push((
+                            i,
+                            j,
+                            groups[i].label.clone(),
+                            groups[j].label.clone(),
+                        ));
                     }
                 }
             }
         }
-        
-        info!("IBD matrix cache: {} hits, {} pairs to compute", cache_hits, pairs_to_compute.len());
-        
+
+        info!(
+            "IBD matrix cache: {} hits, {} pairs to compute",
+            cache_hits,
+            pairs_to_compute.len()
+        );
+
         // Compute missing pairs
         if !pairs_to_compute.is_empty() {
             // Clone data for spawn_blocking
-            let groups_for_computation: Vec<_> = pairs_to_compute.iter()
+            let groups_for_computation: Vec<_> = pairs_to_compute
+                .iter()
                 .map(|(i, j, _, _)| (groups[*i].clone(), groups[*j].clone()))
                 .collect();
             let matrix_clone = matrix.clone();
-            
+
             // Compute all missing pairs in parallel
             let computed_values = tokio::task::spawn_blocking(move || {
                 Self::compute_pairs_blocking(groups_for_computation, matrix_clone)
-            }).await
+            })
+            .await
             .map_err(|e| {
                 error!("Failed to spawn pair computation task: {}", e);
                 ApiError::InternalServerError
             })??;
-            
+
             // Store computed values in result matrix and cache
             {
-                let mut cache = VISUALIZATION_CACHE.computed_matrices.write()
+                let mut cache = VISUALIZATION_CACHE
+                    .computed_matrices
+                    .write()
                     .map_err(|_| ApiError::InternalServerError)?;
-                
-                for ((i, j, label_i, label_j), computed_value) in pairs_to_compute.iter().zip(computed_values.iter()) {
+
+                for ((i, j, label_i, label_j), computed_value) in
+                    pairs_to_compute.iter().zip(computed_values.iter())
+                {
                     result_matrix[*i][*j] = *computed_value;
                     if i != j {
                         result_matrix[*j][*i] = *computed_value; // Symmetric
                     }
-                    
+
                     // Cache the computed pair
                     let cache_key = Self::generate_pair_cache_key(label_i, label_j);
                     let cached_matrix = if i == j {
@@ -98,33 +119,34 @@ impl IbdComputation {
                     } else {
                         // Inter-group: 2x2 symmetric matrix
                         ComputedMatrix {
-                            matrix: vec![
-                                vec![0.0, *computed_value],
-                                vec![*computed_value, 0.0]
-                            ],
+                            matrix: vec![vec![0.0, *computed_value], vec![*computed_value, 0.0]],
                             group_labels: vec![label_i.clone(), label_j.clone()],
                             group_sizes: vec![groups[*i].size, groups[*j].size],
                         }
                     };
-                    
+
                     cache.insert(cache_key, cached_matrix);
                 }
-                
-                info!("Cached {} new IBD pairs (cache size: {})", pairs_to_compute.len(), cache.len());
+
+                info!(
+                    "Cached {} new IBD pairs (cache size: {})",
+                    pairs_to_compute.len(),
+                    cache.len()
+                );
             }
         }
-        
+
         // Build final result
         let group_labels: Vec<String> = groups.iter().map(|g| g.label.clone()).collect();
         let group_sizes: Vec<usize> = groups.iter().map(|g| g.size).collect();
-        
+
         Ok(ComputedMatrix {
             matrix: result_matrix,
             group_labels,
             group_sizes,
         })
     }
-    
+
     /// Generate cache key for a pair of groups (order-independent)
     fn generate_pair_cache_key(label1: &str, label2: &str) -> String {
         if label1 <= label2 {
@@ -133,42 +155,56 @@ impl IbdComputation {
             format!("{}|{}", label2, label1)
         }
     }
-    
+
     /// Compute IBD values for specific pairs of groups
     fn compute_pairs_blocking(
         group_pairs: Vec<(Group, Group)>,
-        matrix: CsMat<f32>
+        matrix: CsMat<f32>,
     ) -> Result<Vec<f32>, ApiError> {
         info!("Computing {} IBD pairs", group_pairs.len());
-        
+
         // Get transposed matrix for adaptive approach
-        let matrix_t = VISUALIZATION_CACHE.ibd_matrix_t.as_ref()
+        let matrix_t = VISUALIZATION_CACHE
+            .ibd_matrix_t
+            .as_ref()
             .ok_or_else(|| ApiError::InternalServerError)?;
-        
-        let results: Vec<f32> = group_pairs.into_iter()
+
+        let results: Vec<f32> = group_pairs
+            .into_iter()
             .map(|(group_a, group_b)| {
-                Self::compute_group_mean_adaptive(&matrix, &matrix_t, &group_a.individuals, &group_b.individuals)
+                Self::compute_group_mean_adaptive(
+                    &matrix,
+                    &matrix_t,
+                    &group_a.individuals,
+                    &group_b.individuals,
+                )
             })
             .collect();
-        
+
         Ok(results)
     }
 
     /// Optimized blocking computation of IBD matrix using adaptive approach
     fn compute_matrix_blocking(
         groups_data: Vec<(String, usize, Vec<usize>)>,
-        matrix: CsMat<f32>
+        matrix: CsMat<f32>,
     ) -> Result<ComputedMatrix, ApiError> {
-        info!("Computing IBD matrix for {} groups using optimized approach", groups_data.len());
+        info!(
+            "Computing IBD matrix for {} groups using optimized approach",
+            groups_data.len()
+        );
         let start_time = std::time::Instant::now();
 
         // Get transposed matrix from cache for adaptive approach
-        let matrix_t = VISUALIZATION_CACHE.ibd_matrix_t.as_ref()
+        let matrix_t = VISUALIZATION_CACHE
+            .ibd_matrix_t
+            .as_ref()
             .ok_or_else(|| ApiError::InternalServerError)?;
 
         // Parallel computation of upper triangle + diagonal only
         let n_groups = groups_data.len();
-        let upper_triangle: Vec<f32> = (0..n_groups).into_par_iter()
+        let upper_triangle: Vec<f32> = (0..n_groups)
+            .into_par_iter()
             .flat_map(|i| (i..n_groups).into_par_iter().map(move |j| (i, j)))
             .map(|(i, j)| {
                 let (_, _, individuals_a) = &groups_data[i];
@@ -193,13 +229,12 @@ impl IbdComputation {
             }
         }
 
-        let group_labels: Vec<String> = groups_data.iter()
+        let group_labels: Vec<String> = groups_data
+            .iter()
             .map(|(label, _, _)| label.clone())
             .collect();
-        
-        let group_sizes: Vec<usize> = groups_data.iter()
-            .map(|(_, size, _)| *size)
-            .collect();
+
+        let group_sizes: Vec<usize> = groups_data.iter().map(|(_, size, _)| *size).collect();
 
         let elapsed = start_time.elapsed();
         info!("Matrix computation completed in {:?}", elapsed);
@@ -229,22 +264,9 @@ impl IbdComputation {
     }
 
     /// Row-wise computation using original matrix
-    fn compute_group_mean_rowwise(
-        matrix: &CsMat<f32>,
-        rows: &[usize],
-        cols: &[usize],
-    ) -> f32 {
+    fn compute_group_mean_rowwise(matrix: &CsMat<f32>, rows: &[usize], cols: &[usize]) -> f32 {
         let col_set: HashSet<usize> = cols.iter().copied().collect();
         let mut sum = 0.0f64;
-
-        // Debug: Sample some actual matrix values
-        if rows.len() > 0 && cols.len() > 0 {
-            let sample_row = rows[0];
-            let sample_col = cols.iter().next().copied().unwrap_or(0);
-            if let Some(sample_value) = matrix.get(sample_row, sample_col) {
-                tracing::info!("Sample IBD matrix lookup: matrix[{},{}] = {}", sample_row, sample_col, sample_value);
-            }
-        }
 
         for &row_idx in rows {
             if let Some(row) = matrix.outer_view(row_idx) {
@@ -295,14 +317,18 @@ impl IbdComputation {
 
     /// Compute asymmetric IBD matrix between row groups and column groups
     pub async fn compute_asymmetric_group_ibd_matrix(
-        row_groups: &[Group], 
-        column_groups: &[Group]
+        row_groups: &[Group],
+        column_groups: &[Group],
     ) -> Result<ComputedMatrix, ApiError> {
         if row_groups.is_empty() || column_groups.is_empty() {
-            return Err(ApiError::ValidationError("Both row and column groups must be provided".to_string()));
+            return Err(ApiError::ValidationError(
+                "Both row and column groups must be provided".to_string(),
+            ));
         }
 
-        let matrix = VISUALIZATION_CACHE.ibd_matrix.as_ref()
+        let matrix = VISUALIZATION_CACHE
+            .ibd_matrix
+            .as_ref()
             .ok_or_else(|| ApiError::InternalServerError)?;
 
         let n_row_groups = row_groups.len();
@@ -311,16 +337,21 @@ impl IbdComputation {
         let mut result_matrix: Vec<Vec<f32>> = vec![vec![0.0; n_column_groups]; n_row_groups];
         let mut pairs_to_compute: Vec<(usize, usize, String, String)> = Vec::new();
         let mut cache_hits = 0;
-        
+
         // Check cache for each row-column pair
         {
-            let cache = VISUALIZATION_CACHE.computed_matrices.read()
+            let cache = VISUALIZATION_CACHE
+                .computed_matrices
+                .read()
                 .map_err(|_| ApiError::InternalServerError)?;
-            
+
             for i in 0..n_row_groups {
                 for j in 0..n_column_groups {
-                    let cache_key = Self::generate_pair_cache_key(&row_groups[i].label, &column_groups[j].label);
-                    
+                    let cache_key = Self::generate_pair_cache_key(
+                        &row_groups[i].label,
+                        &column_groups[j].label,
+                    );
+
                     if let Some(cached_matrix) = cache.get(&cache_key) {
                         // Extract the appropriate value from cached matrix
                         let cached_value = if row_groups[i].label == column_groups[j].label {
@@ -338,48 +369,68 @@ impl IbdComputation {
                                 }
                             } else {
                                 // Shouldn't happen, but compute if needed
-                                pairs_to_compute.push((i, j, row_groups[i].label.clone(), column_groups[j].label.clone()));
+                                pairs_to_compute.push((
+                                    i,
+                                    j,
+                                    row_groups[i].label.clone(),
+                                    column_groups[j].label.clone(),
+                                ));
                                 continue;
                             }
                         };
-                        
+
                         result_matrix[i][j] = cached_value;
                         cache_hits += 1;
                     } else {
                         // Need to compute this pair
-                        pairs_to_compute.push((i, j, row_groups[i].label.clone(), column_groups[j].label.clone()));
+                        pairs_to_compute.push((
+                            i,
+                            j,
+                            row_groups[i].label.clone(),
+                            column_groups[j].label.clone(),
+                        ));
                     }
                 }
             }
         }
-        
-        info!("Asymmetric IBD matrix cache: {} hits, {} pairs to compute", cache_hits, pairs_to_compute.len());
-        
+
+        info!(
+            "Asymmetric IBD matrix cache: {} hits, {} pairs to compute",
+            cache_hits,
+            pairs_to_compute.len()
+        );
+
         // Compute missing pairs
         if !pairs_to_compute.is_empty() {
             // Clone data for spawn_blocking
-            let groups_for_computation: Vec<_> = pairs_to_compute.iter()
+            let groups_for_computation: Vec<_> = pairs_to_compute
+                .iter()
                 .map(|(i, j, _, _)| (row_groups[*i].clone(), column_groups[*j].clone()))
                 .collect();
             let matrix_clone = matrix.clone();
-            
+
             // Compute all missing pairs in parallel
             let computed_values = tokio::task::spawn_blocking(move || {
                 Self::compute_pairs_blocking(groups_for_computation, matrix_clone)
-            }).await
+            })
+            .await
             .map_err(|e| {
                 error!("Failed to spawn asymmetric pair computation task: {}", e);
                 ApiError::InternalServerError
             })??;
-            
+
             // Store computed values in result matrix and cache
             {
-                let mut cache = VISUALIZATION_CACHE.computed_matrices.write()
+                let mut cache = VISUALIZATION_CACHE
+                    .computed_matrices
+                    .write()
                     .map_err(|_| ApiError::InternalServerError)?;
-                
-                for ((i, j, label_row, label_column), computed_value) in pairs_to_compute.iter().zip(computed_values.iter()) {
+
+                for ((i, j, label_row, label_column), computed_value) in
+                    pairs_to_compute.iter().zip(computed_values.iter())
+                {
                     result_matrix[*i][*j] = *computed_value;
-                    
+
                     // Cache the computed pair (reuse existing cache key generation)
                     let cache_key = Self::generate_pair_cache_key(label_row, label_column);
                     let cached_matrix = if label_row == label_column {
@@ -392,30 +443,32 @@ impl IbdComputation {
                     } else {
                         // Different groups: 2x2 symmetric matrix for cache consistency
                         ComputedMatrix {
-                            matrix: vec![
-                                vec![0.0, *computed_value],
-                                vec![*computed_value, 0.0]
-                            ],
+                            matrix: vec![vec![0.0, *computed_value], vec![*computed_value, 0.0]],
                             group_labels: vec![label_row.clone(), label_column.clone()],
                             group_sizes: vec![row_groups[*i].size, column_groups[*j].size],
                         }
                     };
-                    
+
                     cache.insert(cache_key, cached_matrix);
                 }
-                
-                info!("Cached {} new asymmetric IBD pairs (cache size: {})", pairs_to_compute.len(), cache.len());
+
+                info!(
+                    "Cached {} new asymmetric IBD pairs (cache size: {})",
+                    pairs_to_compute.len(),
+                    cache.len()
+                );
             }
         }
-        
+
         // Build final result - return column labels and sizes for consistency with frontend expectations
         let group_labels: Vec<String> = column_groups.iter().map(|g| g.label.clone()).collect();
         let group_sizes: Vec<usize> = column_groups.iter().map(|g| g.size).collect();
-        
+
         Ok(ComputedMatrix {
             matrix: result_matrix,
-            group_labels,  // Column labels 
-            group_sizes,   // Column sizes
+            group_labels, // Column labels
+            group_sizes,  // Column sizes
         })
     }
 }
+
