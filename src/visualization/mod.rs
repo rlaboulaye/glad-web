@@ -195,8 +195,8 @@ impl VisualizationCache {
                     phs: item.get("phs").and_then(|v| v.as_str()).map(String::from),
                     self_described: item
                         .get("self_described")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
+                        .and_then(|v| v.as_bool())
+                        .map(|b| b.to_string()),
                     project: None,
                     ibd_community: None,
                     glad_status: None,
