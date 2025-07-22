@@ -38,10 +38,10 @@ impl Query {
         self_described_latino: bool,
         n_controls: usize,
         excluded_cohorts: Vec<String>,
+        file_path: String,
     ) -> Result<i64, sqlx::Error> {
         let self_described_latino = self_described_latino as i32;
         let n_controls = n_controls as i32;
-        let file_path = "file_path".to_string();
         let logged_user_id =
             sqlx::query!("SELECT user_id FROM user WHERE username=$1", username)
                 .map(|x| x.user_id)

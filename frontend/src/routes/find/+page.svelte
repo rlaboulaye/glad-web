@@ -12,6 +12,65 @@
 	let loading = false;
 	let cohortsLoading = true;
 
+	// File upload variables
+	let selectedFile = null;
+	let fileUploadLoading = false;
+	let dragOver = false;
+
+	// File validation
+	const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+	
+	function validateFile(file) {
+		if (file.size > MAX_FILE_SIZE) {
+			return 'File size must be less than 10MB';
+		}
+		// For now, auto-pass all files - validation can be extended later
+		return null;
+	}
+
+	// File upload handlers
+	function handleFileSelect(event) {
+		const file = event.target.files[0];
+		if (file) {
+			const error = validateFile(file);
+			if (error) {
+				toast.error(error);
+				return;
+			}
+			selectedFile = file;
+		}
+	}
+
+	function handleDragOver(event) {
+		event.preventDefault();
+		dragOver = true;
+	}
+
+	function handleDragLeave(event) {
+		event.preventDefault();
+		dragOver = false;
+	}
+
+	function handleDrop(event) {
+		event.preventDefault();
+		dragOver = false;
+		
+		const files = event.dataTransfer.files;
+		if (files.length > 0) {
+			const file = files[0];
+			const error = validateFile(file);
+			if (error) {
+				toast.error(error);
+				return;
+			}
+			selectedFile = file;
+		}
+	}
+
+	function removeFile() {
+		selectedFile = null;
+	}
+
 	// Load cohorts on mount
 	onMount(async () => {
 		try {
@@ -61,19 +120,26 @@
 			return;
 		}
 
+		if (!selectedFile) {
+			toast.error('Query samples embedding file is required');
+			return;
+		}
+
 		loading = true;
 
 		try {
+			// Create FormData to handle file upload
+			const formData = new FormData();
+			formData.append('description', description.trim());
+			formData.append('self_described_latino', selfDescribedLatino.toString());
+			formData.append('n_controls', nControls.toString());
+			formData.append('excluded_cohorts', JSON.stringify(selectedCohorts));
+			formData.append('query_file', selectedFile);
+
 			const response = await fetch('/api/find-controls', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
 				credentials: 'include',
-				body: JSON.stringify({
-					description: description.trim(),
-					self_described_latino: selfDescribedLatino,
-					n_controls: nControls,
-					excluded_cohorts: selectedCohorts
-				})
+				body: formData // No Content-Type header needed for FormData
 			});
 
 			const result = await response.json();
@@ -198,11 +264,83 @@
 						{/if}
 					</div>
 
+					<!-- File Upload Section -->
+					<div>
+						<h3 class="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4">
+							Query Samples Embedding:
+						</h3>
+						
+						<div 
+							class="border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200
+								{dragOver 
+									? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' 
+									: 'border-gray-300 dark:border-gray-600 hover:border-indigo-400 dark:hover:border-indigo-500'}"
+							on:dragover={handleDragOver}
+							on:dragleave={handleDragLeave}
+							on:drop={handleDrop}
+							role="button"
+							tabindex="0"
+						>
+							{#if selectedFile}
+								<!-- File selected state -->
+								<div class="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-md">
+									<div class="flex items-center space-x-3">
+										<svg class="h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+										</svg>
+										<div class="text-left">
+											<p class="text-sm font-medium text-gray-900 dark:text-gray-100">{selectedFile.name}</p>
+											<p class="text-xs text-gray-500 dark:text-gray-400">
+												{(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+											</p>
+										</div>
+									</div>
+									<button
+										type="button"
+										on:click={removeFile}
+										class="text-red-500 hover:text-red-700 dark:hover:text-red-300"
+									>
+										<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								</div>
+							{:else}
+								<!-- Upload area -->
+								<svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+									<path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+								</svg>
+								<div class="text-gray-600 dark:text-gray-400">
+									<label for="file-upload" class="cursor-pointer">
+										<span class="text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-500">
+											Click to upload
+										</span>
+										<span> or drag and drop</span>
+										<input
+											id="file-upload"
+											type="file"
+											class="sr-only"
+											on:change={handleFileSelect}
+											disabled={loading}
+										/>
+									</label>
+								</div>
+								<p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+									Maximum file size: 10MB
+								</p>
+							{/if}
+						</div>
+						
+						<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+							Upload your query samples embedding file to find matching controls.
+						</p>
+					</div>
+
 					<!-- Submit button -->
 					<div class="flex justify-end">
 						<button
 							type="submit"
-							disabled={loading || !$user}
+							disabled={loading || !$user || !selectedFile}
 							class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 						>
 							{#if loading}
