@@ -26,6 +26,15 @@
 	
 	// IBD grouping fields
 	let ibdSelectedFields = new Set(['ibd_community']); // Default to ibd_community
+	let asymmetricMode = false; // Toggle for asymmetric heatmap
+	let ibdXFields = new Set(['ibd_community']); // X-axis fields for asymmetric mode
+	let ibdYFields = new Set(['ibd_community']); // Y-axis fields for asymmetric mode
+	
+	// IBD Groups for asymmetric mode
+	let ibdXGroups: Array<{label: string, size: number}> = [];
+	let ibdYGroups: Array<{label: string, size: number}> = [];
+	let selectedXGroups = new Set<string>();
+	let selectedYGroups = new Set<string>();
 
 	// Reactive statement to update plot when loading completes
 	$: if (!loading && data.length && Plotly && plotDiv) {
@@ -53,6 +62,49 @@
 		if (ibdSelectedFields.size > 0) {
 			loadIbdGroups();
 		}
+	}
+
+	function toggleAsymmetricMode() {
+		asymmetricMode = !asymmetricMode;
+		
+		if (asymmetricMode) {
+			// Copy current symmetric fields to both X and Y
+			ibdXFields = new Set(ibdSelectedFields);
+			ibdYFields = new Set(ibdSelectedFields);
+			// Reset groups
+			ibdXGroups = [];
+			ibdYGroups = [];
+			selectedXGroups = new Set();
+			selectedYGroups = new Set();
+			loadAsymmetricGroups();
+		} else {
+			// Copy current X axis fields to symmetric mode
+			ibdSelectedFields = new Set(ibdXFields);
+			// Reset groups
+			ibdGroups = [];
+			selectedGroups = new Set();
+			if (ibdSelectedFields.size > 0) {
+				loadIbdGroups();
+			}
+		}
+	}
+
+	function toggleIbdXField(field: string) {
+		if (ibdXFields.has(field)) {
+			ibdXFields = new Set([...ibdXFields].filter(f => f !== field));
+		} else {
+			ibdXFields = new Set([field, ...ibdXFields]);
+		}
+		loadAsymmetricGroups();
+	}
+
+	function toggleIbdYField(field: string) {
+		if (ibdYFields.has(field)) {
+			ibdYFields = new Set([...ibdYFields].filter(f => f !== field));
+		} else {
+			ibdYFields = new Set([field, ...ibdYFields]);
+		}
+		loadAsymmetricGroups();
 	}
 
 	function updatePlot() {
@@ -151,6 +203,32 @@
 		selectedGroups = new Set();
 	}
 
+	function toggleXGroup(groupLabel: string) {
+		if (selectedXGroups.has(groupLabel)) {
+			selectedXGroups = new Set([...selectedXGroups].filter(g => g !== groupLabel));
+		} else {
+			selectedXGroups = new Set([groupLabel, ...selectedXGroups]);
+		}
+		updateAsymmetricHeatmap();
+	}
+
+	function toggleYGroup(groupLabel: string) {
+		if (selectedYGroups.has(groupLabel)) {
+			selectedYGroups = new Set([...selectedYGroups].filter(g => g !== groupLabel));
+		} else {
+			selectedYGroups = new Set([groupLabel, ...selectedYGroups]);
+		}
+		updateAsymmetricHeatmap();
+	}
+
+	function deselectAllXGroups() {
+		selectedXGroups = new Set();
+	}
+
+	function deselectAllYGroups() {
+		selectedYGroups = new Set();
+	}
+
 	async function loadIbdGroups() {
 		// Don't load if no fields are selected
 		if (ibdSelectedFields.size === 0) return;
@@ -174,6 +252,52 @@
 		} catch (err) {
 			toast.error('Failed to load IBD communities');
 			console.error('Error loading IBD groups:', err);
+		}
+	}
+
+	async function loadAsymmetricGroups() {
+		// Load both X and Y groups in parallel
+		const promises = [];
+		
+		if (ibdXFields.size > 0) {
+			const xOrderedFields = availableFields.filter(f => ibdXFields.has(f));
+			const xGrouping = xOrderedFields.join(',');
+			promises.push(
+				fetch(`/api/ibd-groups?grouping=${encodeURIComponent(xGrouping)}&min_size=30`)
+					.then(res => res.json())
+					.then(data => ({ axis: 'x', groups: data.groups }))
+			);
+		}
+		
+		if (ibdYFields.size > 0) {
+			const yOrderedFields = availableFields.filter(f => ibdYFields.has(f));
+			const yGrouping = yOrderedFields.join(',');
+			promises.push(
+				fetch(`/api/ibd-groups?grouping=${encodeURIComponent(yGrouping)}&min_size=30`)
+					.then(res => res.json())
+					.then(data => ({ axis: 'y', groups: data.groups }))
+			);
+		}
+		
+		try {
+			const results = await Promise.all(promises);
+			
+			for (const result of results) {
+				if (result.axis === 'x') {
+					ibdXGroups = result.groups;
+					// Pre-select some groups for X
+					const topXGroups = ibdXGroups.slice(0, 8).map(g => g.label);
+					selectedXGroups = new Set(topXGroups);
+				} else {
+					ibdYGroups = result.groups;
+					// Pre-select some groups for Y
+					const topYGroups = ibdYGroups.slice(0, 8).map(g => g.label);
+					selectedYGroups = new Set(topYGroups);
+				}
+			}
+		} catch (err) {
+			toast.error('Failed to load IBD groups');
+			console.error('Error loading asymmetric IBD groups:', err);
 		}
 	}
 
@@ -210,29 +334,92 @@
 		}
 	}
 
+	async function updateAsymmetricHeatmap() {
+		if (!selectedXGroups.size || !selectedYGroups.size || !Plotly || !heatmapDiv || 
+			ibdXFields.size === 0 || ibdYFields.size === 0) return;
+
+		ibdLoading = true;
+		try {
+			// Generate grouping parameters from selected fields
+			const xOrderedFields = availableFields.filter(f => ibdXFields.has(f));
+			const yOrderedFields = availableFields.filter(f => ibdYFields.has(f));
+			const xGrouping = xOrderedFields.join(',');
+			const yGrouping = yOrderedFields.join(',');
+			
+			const res = await fetch('/api/ibd-matrix-asymmetric', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					row_grouping: yGrouping,      // Y Axis → rows  
+					column_grouping: xGrouping,   // X Axis → columns
+					selected_row_groups: [...selectedYGroups],    // Y Axis → rows
+					selected_column_groups: [...selectedXGroups] // X Axis → columns
+				})
+			});
+
+			if (!res.ok) {
+				throw new Error('Failed to compute asymmetric IBD matrix');
+			}
+
+			heatmapData = await res.json();
+			renderHeatmap();
+
+		} catch (err) {
+			toast.error('Failed to compute asymmetric IBD matrix');
+			console.error('Error computing asymmetric IBD matrix:', err);
+		} finally {
+			ibdLoading = false;
+		}
+	}
+
 	function renderHeatmap() {
 		if (!heatmapData || !Plotly || !heatmapDiv) return;
 
-		const { matrix, group_labels, group_sizes } = heatmapData;
+		// Handle both symmetric and asymmetric data
+		const isAsymmetric = heatmapData.row_group_labels && heatmapData.row_group_sizes;
+		const { matrix } = heatmapData;
+		
+		let xLabels, yLabels, processedMatrix, matrixTitle;
+		
+		if (isAsymmetric) {
+			// Asymmetric mode: columns are X axis, rows are Y axis
+			const { row_group_labels, row_group_sizes, group_labels: column_group_labels, group_sizes: column_group_sizes } = heatmapData;
+			
+			// Create labels with sizes
+			xLabels = column_group_labels.map((label, i) => `${label} (${column_group_sizes[i]})`);
+			yLabels = row_group_labels.map((label, i) => `${label} (${row_group_sizes[i]})`).reverse();
+			
+			// Apply log transformation and reverse matrix rows to match y-axis ordering
+			processedMatrix = logScale 
+				? matrix.map(row => row.map(val => val > 0 ? Math.log10(val + 0.001) : Math.log10(0.001))).reverse()
+				: matrix.slice().reverse();
+			
+			matrixTitle = `IBD Heatmap: ${row_group_labels.length} × ${column_group_labels.length} Groups`;
+		} else {
+			// Symmetric mode: same logic as before
+			const { group_labels, group_sizes } = heatmapData;
+			
+			// Create sorted indices for y-axis (descending by size)
+			const sortedIndices = group_labels
+				.map((label, i) => ({ index: i, size: group_sizes[i], label }))
+				.sort((a, b) => b.size - a.size)
+				.map(item => item.index);
 
-		// Create sorted indices for y-axis (descending by size)
-		const sortedIndices = group_labels
-			.map((label, i) => ({ index: i, size: group_sizes[i], label }))
-			.sort((a, b) => b.size - a.size)
-			.map(item => item.index);
+			// Conditionally apply log transformation based on toggle
+			const logProcessedMatrix = logScale 
+				? matrix.map(row => row.map(val => val > 0 ? Math.log10(val + 0.001) : Math.log10(0.001)))
+				: matrix;
 
-		// Conditionally apply log transformation based on toggle
-		const processedMatrix = logScale 
-			? matrix.map(row => row.map(val => val > 0 ? Math.log10(val + 0.001) : Math.log10(0.001)))
-			: matrix;
-
-		// Reorder matrix rows and y-labels by descending size
-		const reorderedMatrix = sortedIndices.map(i => processedMatrix[i]).reverse(); // Reverse matrix to match labels
-		const yLabels = sortedIndices.map(i => `${group_labels[i]} (${group_sizes[i]})`).reverse(); // Reverse to put largest at top
-		const xLabels = group_labels.map((label, i) => `${label} (${group_sizes[i]})`);
+			// Reorder matrix rows and y-labels by descending size
+			processedMatrix = sortedIndices.map(i => logProcessedMatrix[i]).reverse();
+			yLabels = sortedIndices.map(i => `${group_labels[i]} (${group_sizes[i]})`).reverse();
+			xLabels = group_labels.map((label, i) => `${label} (${group_sizes[i]})`);
+			
+			matrixTitle = `IBD Heatmap: ${group_labels.length} Communities`;
+		}
 
 		const trace = {
-			z: reorderedMatrix,
+			z: processedMatrix,
 			x: xLabels,
 			y: yLabels,
 			type: 'heatmap',
@@ -248,18 +435,18 @@
 
 		const layout = {
 			title: {
-				text: `IBD Heatmap: ${group_labels.length} Communities`,
+				text: matrixTitle,
 				font: { size: 20, color: '#1f2937' }
 			},
 			autosize: true,
 			xaxis: {
-				title: 'IBD Community (Size)',
+				title: isAsymmetric ? `X Axis Groups (${heatmapData.column_grouping})` : 'IBD Community (Size)',
 				side: 'bottom',
 				tickangle: -45,
 				automargin: true
 			},
 			yaxis: {
-				title: 'IBD Community (Size)',
+				title: isAsymmetric ? `Y Axis Groups (${heatmapData.row_grouping})` : 'IBD Community (Size)',
 				side: 'left',
 				automargin: true
 			},
@@ -281,13 +468,23 @@
 	}
 
 	// Load IBD groups when tab becomes active
-	$: if (activeTab === 'ibd' && ibdGroups.length === 0) {
+	$: if (activeTab === 'ibd' && !asymmetricMode && ibdGroups.length === 0) {
 		loadIbdGroups();
 	}
 
-	// Update heatmap when selection or log scale changes
-	$: if (activeTab === 'ibd' && selectedGroups.size > 0 && Plotly && heatmapDiv) {
+	// Load asymmetric groups when tab becomes active in asymmetric mode  
+	$: if (activeTab === 'ibd' && asymmetricMode && (ibdXGroups.length === 0 || ibdYGroups.length === 0)) {
+		loadAsymmetricGroups();
+	}
+
+	// Update symmetric heatmap when selection or log scale changes
+	$: if (activeTab === 'ibd' && !asymmetricMode && selectedGroups.size > 0 && Plotly && heatmapDiv) {
 		setTimeout(() => updateHeatmap(), 100);
+	}
+
+	// Update asymmetric heatmap when selection changes
+	$: if (activeTab === 'ibd' && asymmetricMode && selectedXGroups.size > 0 && selectedYGroups.size > 0 && Plotly && heatmapDiv) {
+		setTimeout(() => updateAsymmetricHeatmap(), 100);
 	}
 	
 	// Re-render heatmap when log scale toggle changes
@@ -401,7 +598,7 @@
 
 						<!-- Metadata fields selector -->
 						<div>
-							<p class="text-gray-700 dark:text-gray-300 mb-3 font-semibold">Color and filter by metadata fields:</p>
+							<p class="text-gray-700 dark:text-gray-300 mb-3 font-semibold">Color and Filter by Metadata Fields:</p>
 							<div class="flex flex-wrap gap-2">
 								{#each availableFields as field}
 									<button
@@ -429,28 +626,79 @@
 			{#if activeTab === 'ibd'}
 				<!-- IBD Grouping Fields Selector -->
 				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-					<div>
-						<p class="text-gray-700 dark:text-gray-300 mb-3 font-semibold">Group IBD heatmap by metadata fields:</p>
-						<div class="flex flex-wrap gap-2">
-							{#each availableFields as field}
-								<button
-									class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
-										{ibdSelectedFields.has(field)
-											? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
-											: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
-									on:click={() => toggleIbdField(field)}
-								>
-									{field}
-								</button>
-							{/each}
+					<div class="space-y-4">
+						<div class="flex items-center justify-between">
+							<p class="text-gray-700 dark:text-gray-300 font-semibold">Group IBD Heatmap by Metadata Fields:</p>
+							<button
+								class="px-4 py-2 text-sm font-medium rounded-md border transition-colors duration-200 bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500"
+								on:click={toggleAsymmetricMode}
+							>
+								{asymmetricMode ? '🔄 Switch to Symmetric' : '🔄 Switch to Asymmetric'}
+							</button>
 						</div>
+						
+						{#if !asymmetricMode}
+							<!-- Symmetric mode field selector -->
+							<div class="flex flex-wrap gap-2">
+								{#each availableFields as field}
+									<button
+										class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
+											{ibdSelectedFields.has(field)
+												? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
+												: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+										on:click={() => toggleIbdField(field)}
+									>
+										{field}
+									</button>
+								{/each}
+							</div>
+						{:else}
+							<!-- Asymmetric mode X/Y axis selectors -->
+							<div class="space-y-4">
+								<!-- X Axis -->
+								<div>
+									<p class="text-gray-700 dark:text-gray-300 mb-2 font-medium">X Axis:</p>
+									<div class="flex flex-wrap gap-2">
+										{#each availableFields as field}
+											<button
+												class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
+													{ibdXFields.has(field)
+														? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
+														: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+												on:click={() => toggleIbdXField(field)}
+											>
+												{field}
+											</button>
+										{/each}
+									</div>
+								</div>
+								
+								<!-- Y Axis -->
+								<div>
+									<p class="text-gray-700 dark:text-gray-300 mb-2 font-medium">Y Axis:</p>
+									<div class="flex flex-wrap gap-2">
+										{#each availableFields as field}
+											<button
+												class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
+													{ibdYFields.has(field)
+														? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
+														: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+												on:click={() => toggleIbdYField(field)}
+											>
+												{field}
+											</button>
+										{/each}
+									</div>
+								</div>
+							</div>
+						{/if}
 					</div>
 				</div>
 
 				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 					<!-- IBD Controls -->
 					<div class="space-y-6">
-						{#if ibdSelectedFields.size === 0}
+						{#if (!asymmetricMode && ibdSelectedFields.size === 0) || (asymmetricMode && (ibdXFields.size === 0 || ibdYFields.size === 0))}
 							<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
 								<div class="text-center">
 									<div class="text-3xl mb-2">🏷️</div>
@@ -460,7 +708,8 @@
 									</p>
 								</div>
 							</div>
-						{:else}
+						{:else if !asymmetricMode}
+							<!-- Symmetric mode group selection -->
 							<div>
 								<div class="flex items-center justify-between mb-4">
 									<div>
@@ -519,6 +768,121 @@
 								</div>
 							{/if}
 						</div>
+						{:else}
+							<!-- Asymmetric mode group selection -->
+							<div class="space-y-6">
+								<!-- X Axis Groups -->
+								<div>
+									<div class="flex items-center justify-between mb-4">
+										<div>
+											<p class="text-gray-700 dark:text-gray-300 font-semibold">X Axis Groups:</p>
+											<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+												Choose X-axis groups ({selectedXGroups.size} selected)
+											</p>
+										</div>
+										<div class="flex items-center space-x-3">
+											{#if ibdLoading}
+												<div class="flex items-center space-x-2">
+													<svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+														<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+														<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+													</svg>
+													<span class="text-sm text-gray-600 dark:text-gray-400">Computing...</span>
+												</div>
+											{:else if selectedXGroups.size > 0}
+												<button
+													class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors duration-200"
+													on:click={deselectAllXGroups}
+												>
+													Deselect All
+												</button>
+											{/if}
+										</div>
+									</div>
+
+									{#if ibdXGroups.length > 0}
+										<div class="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+											<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+												{#each ibdXGroups as group}
+													<button
+														class="px-3 py-2 text-left rounded border text-sm transition-colors duration-200 cursor-pointer select-none
+															{selectedXGroups.has(group.label)
+																? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
+																: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+														on:click={() => toggleXGroup(group.label)}
+														disabled={ibdLoading}
+													>
+														<div class="font-medium">{group.label}</div>
+														<div class="text-xs opacity-75">{group.size} individuals</div>
+													</button>
+												{/each}
+											</div>
+										</div>
+									{:else}
+										<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
+											<div class="text-center">
+												<svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+													<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+													<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+												</svg>
+												<p class="text-sm text-gray-600 dark:text-gray-400">Loading X groups...</p>
+											</div>
+										</div>
+									{/if}
+								</div>
+
+								<!-- Y Axis Groups -->
+								<div>
+									<div class="flex items-center justify-between mb-4">
+										<div>
+											<p class="text-gray-700 dark:text-gray-300 font-semibold">Y Axis Groups:</p>
+											<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+												Choose Y-axis groups ({selectedYGroups.size} selected)
+											</p>
+										</div>
+										<div class="flex items-center space-x-3">
+											{#if selectedYGroups.size > 0}
+												<button
+													class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors duration-200"
+													on:click={deselectAllYGroups}
+												>
+													Deselect All
+												</button>
+											{/if}
+										</div>
+									</div>
+
+									{#if ibdYGroups.length > 0}
+										<div class="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+											<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+												{#each ibdYGroups as group}
+													<button
+														class="px-3 py-2 text-left rounded border text-sm transition-colors duration-200 cursor-pointer select-none
+															{selectedYGroups.has(group.label)
+																? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
+																: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
+														on:click={() => toggleYGroup(group.label)}
+														disabled={ibdLoading}
+													>
+														<div class="font-medium">{group.label}</div>
+														<div class="text-xs opacity-75">{group.size} individuals</div>
+													</button>
+												{/each}
+											</div>
+										</div>
+									{:else}
+										<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
+											<div class="text-center">
+												<svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+													<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+													<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+												</svg>
+												<p class="text-sm text-gray-600 dark:text-gray-400">Loading Y groups...</p>
+											</div>
+										</div>
+									{/if}
+								</div>
+							</div>
 						{/if}
 						
 						<!-- Log Scale Toggle (moved below community selection) -->
@@ -542,13 +906,13 @@
 
 				<!-- IBD Heatmap container -->
 				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-					{#if selectedGroups.size === 0}
+					{#if (!asymmetricMode && selectedGroups.size === 0) || (asymmetricMode && (selectedXGroups.size === 0 || selectedYGroups.size === 0))}
 						<div class="w-full h-[600px] md:h-[700px] lg:h-[750px] flex items-center justify-center">
 							<div class="text-center">
 								<div class="text-4xl mb-4">📊</div>
 								<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Groups</h3>
 								<p class="text-gray-600 dark:text-gray-400">
-									Choose groups above to generate the heatmap
+									{asymmetricMode ? 'Choose X and Y axis groups above to generate the heatmap' : 'Choose groups above to generate the heatmap'}
 								</p>
 							</div>
 						</div>

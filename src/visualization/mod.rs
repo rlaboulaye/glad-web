@@ -473,6 +473,10 @@ impl VisualizationCache {
         ibd::IbdComputation::compute_group_ibd_matrix(groups).await
     }
 
+    pub async fn compute_asymmetric_group_ibd_matrix(&self, row_groups: &[Group], column_groups: &[Group]) -> Result<ComputedMatrix, ApiError> {
+        ibd::IbdComputation::compute_asymmetric_group_ibd_matrix(row_groups, column_groups).await
+    }
+
     /// Validate and parse grouping fields
     fn validate_and_parse_fields(&self, grouping: &str) -> Result<Vec<String>, ApiError> {
         let fields: Vec<String> = grouping
@@ -549,6 +553,74 @@ impl VisualizationCache {
             "group_labels": computed_matrix.group_labels,
             "group_sizes": computed_matrix.group_sizes,
             "grouping": grouping
+        }))
+    }
+
+    /// Compute asymmetric IBD matrix with different row and column groupings
+    pub async fn get_asymmetric_ibd_matrix(
+        &self, 
+        row_grouping: String, 
+        column_grouping: String, 
+        selected_row_groups: Vec<String>, 
+        selected_column_groups: Vec<String>
+    ) -> Result<serde_json::Value, ApiError> {
+        
+        // Validate and parse both grouping fields
+        let row_fields = self.validate_and_parse_fields(&row_grouping)?;
+        let column_fields = self.validate_and_parse_fields(&column_grouping)?;
+        
+        // Generate all groups for both axes
+        let all_row_groups = self.generate_groups_with_min_size(&row_fields, MIN_GROUP_SIZE);
+        let all_column_groups = self.generate_groups_with_min_size(&column_fields, MIN_GROUP_SIZE);
+        
+        // Find selected groups
+        let selected_row_groups_data: Vec<_> = all_row_groups.into_iter()
+            .filter(|group| selected_row_groups.contains(&group.label))
+            .collect();
+        let selected_column_groups_data: Vec<_> = all_column_groups.into_iter()
+            .filter(|group| selected_column_groups.contains(&group.label))
+            .collect();
+        
+        // Validate all selected groups exist
+        if selected_row_groups_data.len() != selected_row_groups.len() {
+            return Err(ApiError::ValidationError("One or more selected row groups do not exist".to_string()));
+        }
+        if selected_column_groups_data.len() != selected_column_groups.len() {
+            return Err(ApiError::ValidationError("One or more selected column groups do not exist".to_string()));
+        }
+        
+        // Double-check minimum group size for privacy protection
+        for group in &selected_row_groups_data {
+            if group.size < MIN_GROUP_SIZE {
+                return Err(ApiError::ValidationError(
+                    format!("Row group '{}' has {} individuals, minimum is {}", 
+                           group.label, group.size, MIN_GROUP_SIZE)
+                ));
+            }
+        }
+        for group in &selected_column_groups_data {
+            if group.size < MIN_GROUP_SIZE {
+                return Err(ApiError::ValidationError(
+                    format!("Column group '{}' has {} individuals, minimum is {}", 
+                           group.label, group.size, MIN_GROUP_SIZE)
+                ));
+            }
+        }
+        
+        // Compute asymmetric IBD matrix
+        let computed_matrix = self.compute_asymmetric_group_ibd_matrix(
+            &selected_row_groups_data, 
+            &selected_column_groups_data
+        ).await?;
+        
+        Ok(serde_json::json!({
+            "matrix": computed_matrix.matrix,
+            "group_labels": computed_matrix.group_labels,  // Column group labels
+            "group_sizes": computed_matrix.group_sizes,    // Column group sizes
+            "row_group_labels": selected_row_groups_data.iter().map(|g| g.label.clone()).collect::<Vec<String>>(),
+            "row_group_sizes": selected_row_groups_data.iter().map(|g| g.size).collect::<Vec<usize>>(),
+            "row_grouping": row_grouping,
+            "column_grouping": column_grouping
         }))
     }
 }

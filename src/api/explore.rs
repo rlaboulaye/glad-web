@@ -25,6 +25,14 @@ pub struct IbdMatrixQuery {
     pub selected_groups: Vec<String>,    // ["212 | Male", "49 | Female"]
 }
 
+#[derive(Deserialize)]
+pub struct IbdAsymmetricMatrixQuery {
+    pub row_grouping: String,              // "ibd_community,sex"
+    pub column_grouping: String,           // "country,ethnicity"  
+    pub selected_row_groups: Vec<String>,  // ["212 | Male", "49 | Female"]
+    pub selected_column_groups: Vec<String>, // ["Brazil | Latino", "Peru | Indigenous"]
+}
+
 pub async fn get_pca_data() -> ApiResult<Json<Value>> {
     // Access the global visualization cache
     let cache = &*VISUALIZATION_CACHE;
@@ -75,5 +83,16 @@ pub async fn get_ibd_groups(Query(params): Query<IbdGroupsQuery>) -> ApiResult<J
 pub async fn compute_ibd_matrix(Json(params): Json<IbdMatrixQuery>) -> ApiResult<Json<Value>> {
     let cache = &*VISUALIZATION_CACHE;
     let result = cache.get_ibd_matrix(params.grouping, params.selected_groups).await?;
+    Ok(Json(result))
+}
+
+pub async fn compute_asymmetric_ibd_matrix(Json(params): Json<IbdAsymmetricMatrixQuery>) -> ApiResult<Json<Value>> {
+    let cache = &*VISUALIZATION_CACHE;
+    let result = cache.get_asymmetric_ibd_matrix(
+        params.row_grouping, 
+        params.column_grouping, 
+        params.selected_row_groups, 
+        params.selected_column_groups
+    ).await?;
     Ok(Json(result))
 }
