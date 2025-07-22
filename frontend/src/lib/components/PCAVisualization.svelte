@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { toast } from '$lib/toast.js';
+	import Legend from './Legend.svelte';
 
 	// Props
 	export let data: any[] = [];
@@ -24,9 +25,55 @@
 	let pcaGroups: Array<{label: string, size: number}> = [];
 	let selectedPcaGroups = new Set<string>();
 	let pcaGroupsLoading = false;
+
+	// Controlled color palette for predictable group colors
+	const COLOR_PALETTE = [
+		'#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+		'#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+		'#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
+		'#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5',
+		'#393b79', '#5254a3', '#6b6ecf', '#9c9ede', '#637939',
+		'#8ca252', '#b5cf6b', '#cedb9c', '#8c6d31', '#bd9e39',
+		'#e7ba52', '#e7cb94', '#843c39', '#ad494a', '#d6616b',
+		'#e7969c', '#7b4173', '#a55194', '#ce6dbd', '#de9ed6'
+	];
+
+	// Track color assignments for consistency
+	let groupColorMap = new Map<string, string>();
 	
 	// Track which groups have been rendered as traces
 	let renderedTraces = new Map<string, number>(); // groupLabel -> traceIndex
+
+	// Reactive legend data
+	let legendData: Array<{label: string, color: string, size: number}> = [];
+
+	// Update legend data reactively when groups or fields change
+	$: {
+		if (data.length > 0 && selectedPcaGroups.size > 0 && selectedFields.size > 0) {
+			legendData = getLegendData();
+		} else {
+			legendData = [];
+		}
+	}
+
+	// Function to get consistent color for a group
+	function getGroupColor(groupLabel: string): string {
+		if (!groupColorMap.has(groupLabel)) {
+			// Assign color based on stable hash of group label for consistency
+			const hash = groupLabel.split('').reduce((a, b) => {
+				a = ((a << 5) - a) + b.charCodeAt(0);
+				return a & a;
+			}, 4);
+			const colorIndex = Math.abs(hash) % COLOR_PALETTE.length;
+			groupColorMap.set(groupLabel, COLOR_PALETTE[colorIndex]);
+			
+			// Debug: log color assignments for common groups
+			if (['Male', 'Female', 'Hispanic', 'NotHispanic', 'NativeAmerican'].includes(groupLabel)) {
+				console.log(`Color assignment: ${groupLabel} -> index ${colorIndex} -> ${COLOR_PALETTE[colorIndex]}`);
+			}
+		}
+		return groupColorMap.get(groupLabel)!;
+	}
 
 	// PCA Group Selection Functions
 	function loadPcaGroups() {
@@ -223,6 +270,7 @@
 			marker: {
 				size: 6,
 				opacity: 0.6,
+				color: getGroupColor(key),
 			},
 		}));
 
@@ -297,6 +345,7 @@
 		pcaGroups = [];
 		selectedPcaGroups = new Set();
 		renderedTraces = new Map(); // Clear trace tracking
+		groupColorMap = new Map(); // Clear color assignments for fresh mapping
 		if (selectedFields.size > 0 && isActive && data.length > 0) {
 			loadPcaGroups();
 		}
@@ -332,6 +381,32 @@
 			.filter(([key, group]) => selectedPcaGroups.has(key) && group.length >= MIN_QUERY_GROUP_SIZE)
 			.sort((a, b) => b[1].length - a[1].length)
 			.map(([key, group]) => `(${group.length}) ${key}`);
+	}
+
+	// Get legend data for visible groups with colors and sizes
+	function getLegendData(): Array<{label: string, color: string, size: number}> {
+		if (!data.length || selectedPcaGroups.size === 0) return [];
+		
+		const orderedFields = availableFields.filter(f => selectedFields.has(f));
+		const grouped = new Map<string, any[]>();
+		
+		for (const d of data) {
+			const key = orderedFields.length > 0
+				? orderedFields.map(f => d[f] ?? 'Unknown').join(' | ')
+				: 'All';
+			if (!grouped.has(key)) grouped.set(key, []);
+			grouped.get(key)!.push(d);
+		}
+		
+		// Return only selected groups with their colors and sizes
+		return Array.from(grouped.entries())
+			.filter(([key, group]) => selectedPcaGroups.has(key))
+			.sort((a, b) => b[1].length - a[1].length)
+			.map(([key, group]) => ({
+				label: key,
+				color: getGroupColor(key),
+				size: group.length
+			}));
 	}
 
 	// Handle PCA tab activation and plot rendering
@@ -481,8 +556,18 @@
 									on:click={() => togglePcaGroup(group.label)}
 									disabled={pcaGroupsLoading}
 								>
-									<div class="font-medium">{group.label}</div>
-									<div class="text-xs opacity-75">{group.size} individuals</div>
+									<div class="flex items-center space-x-2">
+										<!-- Color dot -->
+										<div 
+											class="w-3 h-3 rounded-full border border-gray-300 dark:border-gray-500 flex-shrink-0
+												{selectedPcaGroups.has(group.label) ? 'border-white' : ''}"
+											style="background-color: {getGroupColor(group.label)}"
+										></div>
+										<div class="flex-1 min-w-0">
+											<div class="font-medium truncate">{group.label}</div>
+											<div class="text-xs opacity-75">{group.size} individuals</div>
+										</div>
+									</div>
 								</button>
 							{/each}
 						</div>
@@ -503,20 +588,64 @@
 	</div>
 </div>
 
-<!-- PCA Plot container -->
+<!-- PCA Plot container with integrated legend -->
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-	<div class="w-full h-[600px] md:h-[700px] lg:h-[750px] relative">
-		{#if selectedPcaGroups.size === 0}
-			<div class="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 z-10">
-				<div class="text-center">
-					<div class="text-4xl mb-4">📊</div>
-					<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Groups</h3>
-					<p class="text-gray-600 dark:text-gray-400">
-						Choose groups above to display in the PCA plot
-					</p>
+	<div class="flex h-[600px] md:h-[700px] lg:h-[750px] gap-4">
+		<!-- Plot area -->
+		<div class="flex-1 relative">
+			{#if selectedPcaGroups.size === 0}
+				<div class="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 z-10">
+					<div class="text-center">
+						<div class="text-4xl mb-4">📊</div>
+						<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Groups</h3>
+						<p class="text-gray-600 dark:text-gray-400">
+							Choose groups above to display in the PCA plot
+						</p>
+					</div>
+				</div>
+			{/if}
+			<div bind:this={plotDiv} class="w-full h-full"></div>
+		</div>
+		
+		<!-- Legend sidebar -->
+		{#if legendData.length > 0}
+			<div class="w-48 flex-shrink-0">
+				<div class="h-full flex flex-col">
+					<div class="mb-3">
+						<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Legend</h3>
+						<p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
+							{legendData.length} groups
+						</p>
+					</div>
+					
+					<div class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+						<div class="space-y-1">
+							{#each legendData as group}
+								<div 
+									class="flex items-center space-x-2 py-1 cursor-default"
+									title="{group.label} ({group.size} individuals)"
+								>
+									<!-- Color swatch -->
+									<div 
+										class="w-3 h-3 rounded-full border border-gray-300 dark:border-gray-500 flex-shrink-0"
+										style="background-color: {group.color}"
+									></div>
+									
+									<!-- Group label and count -->
+									<div class="flex-1 min-w-0">
+										<div class="text-xs text-gray-700 dark:text-gray-300 truncate leading-tight">
+											{group.label}
+											<span class="text-gray-500 dark:text-gray-400">
+												({group.size})
+											</span>
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
 				</div>
 			</div>
 		{/if}
-		<div bind:this={plotDiv} class="w-full h-full"></div>
 	</div>
 </div>
