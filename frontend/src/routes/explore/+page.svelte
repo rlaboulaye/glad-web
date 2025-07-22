@@ -21,6 +21,7 @@
 	let selectedGroups = new Set<string>();
 	let heatmapDiv: HTMLDivElement;
 	let ibdLoading = false;
+	let plotRendering = false;
 	let heatmapData: any = null;
 	let logScale = false; // Toggle for log scale visualization
 	
@@ -328,7 +329,7 @@
 			}
 
 			heatmapData = await res.json();
-			renderHeatmap();
+			await renderHeatmap();
 
 		} catch (err) {
 			toast.error('Failed to compute IBD matrix');
@@ -366,7 +367,7 @@
 			}
 
 			heatmapData = await res.json();
-			renderHeatmap();
+			await renderHeatmap();
 
 		} catch (err) {
 			toast.error('Failed to compute asymmetric IBD matrix');
@@ -376,8 +377,10 @@
 		}
 	}
 
-	function renderHeatmap() {
+	async function renderHeatmap() {
 		if (!heatmapData || !Plotly || !heatmapDiv) return;
+
+		plotRendering = true;
 
 		// Handle both symmetric and asymmetric data
 		const isAsymmetric = heatmapData.row_group_labels && heatmapData.row_group_sizes;
@@ -464,11 +467,15 @@
 			}
 		};
 
-		Plotly.newPlot(heatmapDiv, [trace], layout, {
-			responsive: true,
-			displayModeBar: true,
-			displaylogo: false
-		});
+		try {
+			await Plotly.newPlot(heatmapDiv, [trace], layout, {
+				responsive: true,
+				displayModeBar: true,
+				displaylogo: false
+			});
+		} finally {
+			plotRendering = false;
+		}
 	}
 
 	// Submit Query function (placeholder)
@@ -499,7 +506,7 @@
 	
 	// Re-render heatmap when log scale toggle changes
 	$: if (activeTab === 'ibd' && heatmapData && Plotly && heatmapDiv && logScale !== undefined) {
-		setTimeout(() => renderHeatmap(), 100);
+		setTimeout(async () => await renderHeatmap(), 100);
 	}
 
 	// Reactive: Generate available groups for Query dropdown
@@ -829,15 +836,7 @@
 										</p>
 									</div>
 								<div class="flex items-center space-x-3">
-									{#if ibdLoading}
-										<div class="flex items-center space-x-2">
-											<svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-												<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-												<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-											</svg>
-											<span class="text-sm text-gray-600 dark:text-gray-400">Computing...</span>
-										</div>
-									{:else if selectedGroups.size > 0}
+									{#if selectedGroups.size > 0}
 										<button
 											class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors duration-200"
 											on:click={deselectAllGroups}
@@ -891,15 +890,7 @@
 											</p>
 										</div>
 										<div class="flex items-center space-x-3">
-											{#if ibdLoading}
-												<div class="flex items-center space-x-2">
-													<svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-														<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-														<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-													</svg>
-													<span class="text-sm text-gray-600 dark:text-gray-400">Computing...</span>
-												</div>
-											{:else if selectedXGroups.size > 0}
+											{#if selectedXGroups.size > 0}
 												<button
 													class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors duration-200"
 													on:click={deselectAllXGroups}
@@ -1027,7 +1018,20 @@
 							</div>
 						</div>
 					{:else}
-						<div bind:this={heatmapDiv} class="w-full h-[600px] md:h-[700px] lg:h-[750px]"></div>
+						<div class="w-full h-[600px] md:h-[700px] lg:h-[750px] relative">
+							{#if ibdLoading || plotRendering}
+								<div class="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 z-10">
+									<div class="text-center">
+										<svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+										<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300">Computing IBD Heatmap</h3>
+									</div>
+								</div>
+							{/if}
+							<div bind:this={heatmapDiv} class="w-full h-full"></div>
+						</div>
 					{/if}
 				</div>
 
