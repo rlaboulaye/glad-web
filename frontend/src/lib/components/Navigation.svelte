@@ -22,6 +22,7 @@
 	const isDashboardActive = derived(currentPath, ($path) => $path === '/dashboard');
 	const isFindActive = derived(currentPath, ($path) => $path === '/find');
 	const isExploreActive = derived(currentPath, ($path) => $path === '/explore');
+	const isPublicationActive = derived(currentPath, ($path) => $path === '/publication');
 
 	// Helper function for mobile menu (since we can't use derived stores in class:conditions)
 	function isActive(path: string): boolean {
@@ -149,6 +150,18 @@
 							class:hover:text-white={!$isExploreActive}
 						>
 							Explore
+						</a>
+						<a
+							href="/publication"
+							class="rounded-md px-3 py-2 text-sm font-medium"
+							class:hidden={$isLoading}
+							class:bg-gray-900={$isPublicationActive}
+							class:text-white={$isPublicationActive}
+							class:text-gray-300={!$isPublicationActive}
+							class:hover:bg-gray-700={!$isPublicationActive}
+							class:hover:text-white={!$isPublicationActive}
+						>
+							Publication
 						</a>
 					</div>
 				</div>
@@ -313,6 +326,17 @@
 						class:hover:text-white={!isActive('/explore')}
 					>
 						Explore
+					</a>
+					<a
+						href="/publication"
+						class="rounded-md px-3 py-2 text-base font-medium block"
+						class:bg-gray-900={isActive('/publication')}
+						class:text-white={isActive('/publication')}
+						class:text-gray-300={!isActive('/publication')}
+						class:hover:bg-gray-700={!isActive('/publication')}
+						class:hover:text-white={!isActive('/publication')}
+					>
+						Publication
 					</a>
 				{/if}
 			</div>

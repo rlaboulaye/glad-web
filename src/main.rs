@@ -134,6 +134,7 @@ async fn main() {
         .route("/api/ibd-groups", get(api::explore::get_ibd_groups))
         .route("/api/ibd-matrix", post(api::explore::compute_ibd_matrix))
         .route("/api/ibd-matrix-asymmetric", post(api::explore::compute_asymmetric_ibd_matrix))
+        .route("/api/citations", get(api::publication::get_citations))
         // Static file serving for frontend
         .fallback_service(ServeDir::new("frontend/build"))
         // Middleware
