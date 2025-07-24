@@ -19,11 +19,11 @@
 		});
 	}
 
-	// Truncate description if too long
-	function truncateDescription(description, maxLength = 100) {
-		if (!description) return 'No description';
-		if (description.length <= maxLength) return description;
-		return description.substring(0, maxLength) + '...';
+	// Truncate text if too long
+	function truncateText(text, maxLength = 60) {
+		if (!text) return '';
+		if (text.length <= maxLength) return text;
+		return text.substring(0, maxLength) + '...';
 	}
 
 	// Get status styling
@@ -149,7 +149,7 @@
 						<thead class="bg-gray-50 dark:bg-gray-700">
 							<tr>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-									Description
+									Title
 								</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
 									Controls
@@ -169,9 +169,14 @@
 							{#each queries as query}
 								<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" on:click={() => handleQueryClick(query.query_id)}>
 									<td class="px-6 py-4">
-										<div class="text-sm text-gray-900 dark:text-white">
-											{truncateDescription(query.description)}
+										<div class="text-sm font-medium text-gray-900 dark:text-white">
+											{query.title}
 										</div>
+										{#if query.description}
+											<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+												{truncateText(query.description, 80)}
+											</div>
+										{/if}
 										{#if query.self_described_latino}
 											<div class="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
 												Latino-only search

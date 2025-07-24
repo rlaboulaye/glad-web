@@ -2,6 +2,7 @@
 CREATE TABLE query (
 	query_id INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id INTEGER NOT NULL,
+	title TEXT NOT NULL CHECK(LENGTH(title) >= 4 AND LENGTH(title) <= 100),
 	description TEXT DEFAULT '',
 	file_path TEXT NOT NULL,
 	self_described_latino INTEGER NOT NULL,

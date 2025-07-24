@@ -189,10 +189,10 @@
 						</div>
 						<div>
 							<h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-								Query #{query.query_id}
+								{query.title}
 							</h1>
 							<p class="text-gray-600 dark:text-gray-400">
-								Submitted on {formatDate(query.created_at)}
+								Query #{query.query_id} • Submitted on {formatDate(query.created_at)}
 							</p>
 						</div>
 					</div>
@@ -205,14 +205,16 @@
 			</div>
 
 			<!-- Query Details -->
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+			<div class="grid grid-cols-1 {query.description ? 'md:grid-cols-2' : ''} gap-6 mb-6">
 				<!-- Description -->
-				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-					<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h2>
-					<p class="text-gray-700 dark:text-gray-300">
-						{query.description || 'No description provided'}
-					</p>
-				</div>
+				{#if query.description}
+					<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+						<h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h2>
+						<p class="text-gray-700 dark:text-gray-300">
+							{query.description}
+						</p>
+					</div>
+				{/if}
 
 				<!-- Query Parameters -->
 				<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">

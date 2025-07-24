@@ -4,6 +4,7 @@
 	import { user } from '$lib/auth.js';
 	import { toast } from '$lib/toast.js';
 
+	let title = '';
 	let description = '';
 	let selfDescribedLatino = false;
 	let nControls = 100;
@@ -105,13 +106,18 @@
 		if (loading) return;
 
 		// Validate form
-		if (!description.trim()) {
-			toast.error('Description is required');
+		if (!title.trim()) {
+			toast.error('Title is required');
 			return;
 		}
 
-		if (description.trim().length < 4) {
-			toast.error('Description must be at least 4 characters long');
+		if (title.trim().length < 4) {
+			toast.error('Title must be at least 4 characters long');
+			return;
+		}
+
+		if (title.trim().length > 100) {
+			toast.error('Title must be no more than 100 characters long');
 			return;
 		}
 
@@ -130,7 +136,8 @@
 		try {
 			// Create FormData to handle file upload
 			const formData = new FormData();
-			formData.append('description', description.trim());
+			formData.append('title', title.trim());
+			formData.append('description', description.trim() || '');
 			formData.append('self_described_latino', selfDescribedLatino.toString());
 			formData.append('n_controls', nControls.toString());
 			formData.append('excluded_cohorts', JSON.stringify(selectedCohorts));
@@ -181,19 +188,34 @@
 		{:else}
 			<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-8">
 				<form on:submit|preventDefault={handleSubmit} class="space-y-6">
+					<!-- Title -->
+					<div>
+						<label for="title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+							Query Title *
+						</label>
+						<input
+							id="title"
+							type="text"
+							bind:value={title}
+							disabled={loading}
+							placeholder="Enter a descriptive title for your query (4-100 characters)"
+							class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white disabled:opacity-50"
+						/>
+					</div>
+
 					<!-- Description -->
 					<div>
 						<label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-							Project Description
+							Project Description (optional)
 						</label>
-						<input
+						<textarea
 							id="description"
-							type="text"
+							rows="3"
 							bind:value={description}
 							disabled={loading}
-							placeholder="Give a brief description of your project and need for additional controls."
+							placeholder="Give additional details about your project and need for controls."
 							class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white disabled:opacity-50"
-						/>
+						></textarea>
 					</div>
 
 					<!-- Self-described Latino checkbox -->

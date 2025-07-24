@@ -16,7 +16,7 @@ impl Notification {
     pub async fn create_for_query_status(
         user_id: i64,
         query_id: i64,
-        query_description: &str,
+        query_title: &str,
         status: &str,
     ) -> Result<i64, sqlx::Error> {
         let (title, message) = match status {
@@ -24,12 +24,12 @@ impl Notification {
                 "Query Completed".to_string(),
                 format!(
                     "Your query '{}' has completed successfully",
-                    query_description
+                    query_title
                 ),
             ),
             "errored" => (
                 "Query Error".to_string(),
-                format!("Your query '{}' has errored", query_description),
+                format!("Your query '{}' has errored", query_title),
             ),
             _ => return Err(sqlx::Error::RowNotFound), // Only create notifications for completed/errored
         };
@@ -118,12 +118,12 @@ impl Notification {
     }
 
     /// Find queries with completed/errored status that don't have notifications yet
-    /// Returns Vec<(query_id, user_id, description, status)>
+    /// Returns Vec<(query_id, user_id, title, status)>
     pub async fn find_queries_needing_notifications(
     ) -> Result<Vec<(i64, i64, String, String)>, sqlx::Error> {
         sqlx::query!(
             r#"
-            SELECT q.query_id, q.user_id, q.description, q.status
+            SELECT q.query_id, q.user_id, q.title, q.status
             FROM query q
             LEFT JOIN notifications n ON q.query_id = n.query_id
             WHERE q.status IN ('completed', 'errored')
@@ -131,10 +131,7 @@ impl Notification {
             "#
         )
         .map(|row| {
-            let description = row
-                .description
-                .unwrap_or_else(|| "Untitled Query".to_string());
-            (row.query_id, row.user_id, description, row.status)
+            (row.query_id, row.user_id, row.title, row.status)
         })
         .fetch_all(crate::database::get_db())
         .await
@@ -145,8 +142,8 @@ impl Notification {
         let queries = Self::find_queries_needing_notifications().await?;
         let mut created_count = 0;
 
-        for (query_id, user_id, description, status) in queries {
-            match Self::create_for_query_status(user_id, query_id, &description, &status).await {
+        for (query_id, user_id, title, status) in queries {
+            match Self::create_for_query_status(user_id, query_id, &title, &status).await {
                 Ok(_) => {
                     created_count += 1;
                     tracing::info!(

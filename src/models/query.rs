@@ -22,6 +22,7 @@ impl Cohort {
 pub struct Query {
     pub query_id: i64,
     pub user_id: i64,
+    pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub self_described_latino: bool,
@@ -34,7 +35,8 @@ pub struct Query {
 impl Query {
     pub async fn insert(
         username: String,
-        description: String,
+        title: String,
+        description: Option<String>,
         self_described_latino: bool,
         n_controls: usize,
         excluded_cohorts: Vec<String>,
@@ -66,8 +68,9 @@ impl Query {
                 .expect("Could not retrieve cohort ids")
         };
         let query_id = sqlx::query!(
-            "INSERT INTO query(user_id, description, file_path, self_described_latino, n_controls) VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO query(user_id, title, description, file_path, self_described_latino, n_controls) VALUES ($1, $2, $3, $4, $5, $6)",
             logged_user_id,
+            title,
             description,
             file_path,
             self_described_latino,
@@ -103,12 +106,13 @@ impl Query {
                 .await
                 .expect(&format!("Could not retrieve user_id using username {}", username));
         sqlx::query!(
-            "SELECT query_id, user_id, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE user_id=$1 ORDER BY created_at DESC",
+            "SELECT query_id, user_id, title, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE user_id=$1 ORDER BY created_at DESC",
             logged_user_id,
         )
         .map(|x| Self {
             query_id: x.query_id,
             user_id: x.user_id,
+            title: x.title,
             description: x.description,
             self_described_latino: match x.self_described_latino {
                     0 => false,
@@ -125,12 +129,13 @@ impl Query {
 
     pub async fn for_query(query_id: i64) -> Result<Self, sqlx::Error> {
         sqlx::query!(
-            "SELECT query_id, user_id, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE query_id=$1",
+            "SELECT query_id, user_id, title, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE query_id=$1",
             query_id,
         )
         .map(|x| Self {
             query_id: x.query_id,
             user_id: x.user_id,
+            title: x.title,
             description: x.description,
             self_described_latino: match x.self_described_latino {
                     0 => false,

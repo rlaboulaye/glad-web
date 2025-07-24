@@ -12,7 +12,8 @@ use crate::models::{Cohort, Query};
 
 #[derive(Debug, Deserialize)]
 pub struct FindControlsRequest {
-    pub description: String,
+    pub title: String,
+    pub description: Option<String>,
     pub self_described_latino: bool,
     pub n_controls: usize,
     pub excluded_cohorts: Vec<String>,
@@ -56,7 +57,8 @@ pub async fn submit_find_controls(headers: HeaderMap, mut multipart: Multipart) 
         .ok_or(ApiError::UserNotFound)?;
 
     // Parse form fields
-    let mut description = String::new();
+    let mut title = String::new();
+    let mut description: Option<String> = None;
     let mut self_described_latino = false;
     let mut n_controls = 100usize;
     let mut excluded_cohorts = Vec::new();
@@ -71,11 +73,18 @@ pub async fn submit_find_controls(headers: HeaderMap, mut multipart: Multipart) 
         let name = field.name().unwrap_or("").to_string();
         
         match name.as_str() {
+            "title" => {
+                let data = field.bytes().await.map_err(|_| 
+                    ApiError::ValidationError("Failed to read title".to_string()))?;
+                title = String::from_utf8(data.to_vec()).map_err(|_|
+                    ApiError::ValidationError("Invalid title encoding".to_string()))?;
+            },
             "description" => {
                 let data = field.bytes().await.map_err(|_| 
                     ApiError::ValidationError("Failed to read description".to_string()))?;
-                description = String::from_utf8(data.to_vec()).map_err(|_|
+                let desc = String::from_utf8(data.to_vec()).map_err(|_|
                     ApiError::ValidationError("Invalid description encoding".to_string()))?;
+                description = if desc.trim().is_empty() { None } else { Some(desc.trim().to_string()) };
             },
             "self_described_latino" => {
                 let data = field.bytes().await.map_err(|_|
@@ -112,8 +121,12 @@ pub async fn submit_find_controls(headers: HeaderMap, mut multipart: Multipart) 
     }
 
     // Validate form data
-    if description.trim().len() < 4 {
-        return Err(ApiError::ValidationError("Description must be at least 4 characters long".to_string()));
+    if title.trim().len() < 4 {
+        return Err(ApiError::ValidationError("Title must be at least 4 characters long".to_string()));
+    }
+    
+    if title.trim().len() > 100 {
+        return Err(ApiError::ValidationError("Title must be no more than 100 characters long".to_string()));
     }
 
     if n_controls == 0 {
@@ -156,7 +169,8 @@ pub async fn submit_find_controls(headers: HeaderMap, mut multipart: Multipart) 
     // Insert query with the temporary file path (will be updated later)
     let query_id = Query::insert(
         username.clone(),
-        description.trim().to_string(),
+        title.trim().to_string(),
+        description,
         self_described_latino,
         n_controls,
         excluded_cohorts,
