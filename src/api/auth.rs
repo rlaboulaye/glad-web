@@ -31,6 +31,7 @@ pub struct SignupRequest {
     pub email: String,
     pub password: String,
     pub bio: String,
+    pub email_notifications: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -149,7 +150,8 @@ pub async fn signup(Json(payload): Json<SignupRequest>) -> ApiResult<impl IntoRe
         .set_password(payload.password)
         .map_err(|e| ApiError::ValidationError(e.to_string()))?
         .set_bio(payload.bio)
-        .map_err(|e| ApiError::ValidationError(e.to_string()))?;
+        .map_err(|e| ApiError::ValidationError(e.to_string()))?
+        .set_email_notifications(payload.email_notifications);
 
     // Insert user into database
     user.insert().await?;

@@ -122,10 +122,11 @@
 		{:else if currentUser}
 			<form on:submit|preventDefault={handleUpdateSettings} class="p-8 shadow-md rounded-lg mt-8 space-y-6 bg-white dark:bg-gray-800">
 				<div>
-					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+					<label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 						Username
 					</label>
 					<input
+						id="username"
 						disabled
 						type="text"
 						placeholder="Your Username"
@@ -171,7 +172,7 @@
 								Email Notifications
 							</label>
 							<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-								Receive email notifications when your queries are completed or errored
+								Receive email notifications when your queries are completed or error
 							</p>
 						</div>
 						<div class="ml-4">

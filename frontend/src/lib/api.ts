@@ -21,12 +21,12 @@ export async function login(username: string, password: string) {
 	return data;
 }
 
-export async function signup(username: string, email: string, password: string, bio: string) {
+export async function signup(username: string, email: string, password: string, bio: string, emailNotifications?: boolean) {
 	const response = await fetch('/api/auth/signup', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		credentials: 'include',
-		body: JSON.stringify({ username, email, password, bio })
+		body: JSON.stringify({ username, email, password, bio, email_notifications: emailNotifications || false })
 	});
 	
 	const data = await response.json();
