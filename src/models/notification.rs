@@ -22,10 +22,13 @@ impl Notification {
         let (title, message) = match status {
             "completed" => (
                 "Query Completed".to_string(),
-                format!("Your query '{}' has completed successfully", query_description),
+                format!(
+                    "Your query '{}' has completed successfully",
+                    query_description
+                ),
             ),
             "errored" => (
-                "Query Error".to_string(), 
+                "Query Error".to_string(),
                 format!("Your query '{}' has errored", query_description),
             ),
             _ => return Err(sqlx::Error::RowNotFound), // Only create notifications for completed/errored
@@ -41,7 +44,15 @@ impl Notification {
         .execute(crate::database::get_db())
         .await?;
 
-        Ok(result.last_insert_rowid())
+        let notification_id = result.last_insert_rowid();
+
+        // Send email notification if user has it enabled
+        if let Err(e) = Self::send_email_notification(user_id, query_id, &title, &message).await {
+            tracing::error!("Failed to send email notification: {}", e);
+            // Don't fail the notification creation if email fails
+        }
+
+        Ok(notification_id)
     }
 
     /// Get all notifications for a user, ordered by most recent first
@@ -54,7 +65,9 @@ impl Notification {
             user_id
         )
         .map(|row| Self {
-            notification_id: row.notification_id.expect("notification_id should not be null"),
+            notification_id: row
+                .notification_id
+                .expect("notification_id should not be null"),
             user_id: row.user_id,
             query_id: row.query_id,
             title: row.title,
@@ -106,7 +119,8 @@ impl Notification {
 
     /// Find queries with completed/errored status that don't have notifications yet
     /// Returns Vec<(query_id, user_id, description, status)>
-    pub async fn find_queries_needing_notifications() -> Result<Vec<(i64, i64, String, String)>, sqlx::Error> {
+    pub async fn find_queries_needing_notifications(
+    ) -> Result<Vec<(i64, i64, String, String)>, sqlx::Error> {
         sqlx::query!(
             r#"
             SELECT q.query_id, q.user_id, q.description, q.status
@@ -117,7 +131,9 @@ impl Notification {
             "#
         )
         .map(|row| {
-            let description = row.description.unwrap_or_else(|| "Untitled Query".to_string());
+            let description = row
+                .description
+                .unwrap_or_else(|| "Untitled Query".to_string());
             (row.query_id, row.user_id, description, row.status)
         })
         .fetch_all(crate::database::get_db())
@@ -133,18 +149,99 @@ impl Notification {
             match Self::create_for_query_status(user_id, query_id, &description, &status).await {
                 Ok(_) => {
                     created_count += 1;
-                    tracing::info!("Created notification for query {} (status: {})", query_id, status);
+                    tracing::info!(
+                        "Created notification for query {} (status: {})",
+                        query_id,
+                        status
+                    );
                 }
                 Err(e) => {
-                    tracing::error!("Failed to create notification for query {}: {}", query_id, e);
+                    tracing::error!(
+                        "Failed to create notification for query {}: {}",
+                        query_id,
+                        e
+                    );
                 }
             }
         }
 
         if created_count > 0 {
-            tracing::info!("Created {} notifications for completed/errored queries", created_count);
+            tracing::info!(
+                "Created {} notifications for completed/errored queries",
+                created_count
+            );
         }
 
         Ok(created_count)
     }
+
+    /// Send email notification if user has email notifications enabled
+    async fn send_email_notification(
+        user_id: i64,
+        query_id: i64,
+        title: &str,
+        message: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        use std::env;
+
+        // Get user information including email preferences
+        let user_info = sqlx::query!(
+            "SELECT username, email, email_notifications FROM user WHERE user_id = $1",
+            user_id
+        )
+        .fetch_one(crate::database::get_db())
+        .await?;
+
+        // Only send email if user has enabled email notifications
+        if !user_info.email_notifications {
+            return Ok(());
+        }
+
+        // Get email configuration from environment
+        let mailer_email = env::var("MAILER_EMAIL")?;
+        let mailer_passwd = env::var("MAILER_PASSWD")?;
+        let smtp_server = env::var("MAILER_SMTP_SERVER")?;
+        let site_base_url = env::var("SITE_BASE_URL")?;
+
+        // Build email message
+        let query_url = format!("{}/dashboard/query/{}", site_base_url, query_id);
+
+        let email_body = format!(
+            "{}\n\nView your query details: {}\n\nThis is an automated notification from GLAD.",
+            message, query_url
+        );
+
+        // Extract status from title for cleaner subject line
+        let status = if title == "Query Completed" {
+            "Completed"
+        } else {
+            "Error"
+        };
+
+        let email_message = mail_send::mail_builder::MessageBuilder::new()
+            .from(("GLAD", mailer_email.as_str()))
+            .to(vec![(
+                user_info.username.as_str(),
+                user_info.email.as_str(),
+            )])
+            .subject(format!("GLAD - Query Status: {}", status))
+            .text_body(email_body);
+
+        // Send email
+        let mut client = mail_send::SmtpClientBuilder::new(smtp_server.as_str(), 587)
+            .implicit_tls(false)
+            .credentials((mailer_email.as_str(), mailer_passwd.as_str()))
+            .connect()
+            .await?;
+
+        client.send(email_message).await?;
+
+        tracing::info!(
+            "Email notification sent to user {} for query {}",
+            user_info.username,
+            query_id
+        );
+        Ok(())
+    }
 }
+

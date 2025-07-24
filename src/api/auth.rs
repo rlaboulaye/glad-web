@@ -44,6 +44,7 @@ pub struct UserResponse {
     pub username: String,
     pub email: String,
     pub bio: String,
+    pub email_notifications: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,6 +75,7 @@ pub struct UpdateSettingsRequest {
     pub email: String,
     pub password: String,
     pub confirm_password: String,
+    pub email_notifications: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -186,6 +188,7 @@ pub async fn me(request: Request) -> ApiResult<Json<UserResponse>> {
         username: user.username(),
         email: user.email(),
         bio: user.bio().unwrap_or_default(),
+        email_notifications: user.email_notifications(),
     }))
 }
 
@@ -210,10 +213,10 @@ pub async fn reset_password(Json(payload): Json<ResetPasswordRequest>) -> ApiRes
             })
             .map_err(|_| ApiError::InternalServerError)?;
 
-            // Build reset URL - in production should use HTTPS
-            let schema = if cfg!(debug_assertions) { "http" } else { "https" };
-            let host = "localhost:5173"; // For development
-            let reset_url = format!("{}://{}/reset-password?token={}", schema, host, token);
+            // Build reset URL using configured site base URL
+            let site_base_url = env::var("SITE_BASE_URL")
+                .map_err(|_| ApiError::InternalServerError)?;
+            let reset_url = format!("{}/reset-password?token={}", site_base_url, token);
 
             // Build email message
             let message = mail_send::mail_builder::MessageBuilder::new()
@@ -312,11 +315,12 @@ pub async fn update_settings(request: Request) -> ApiResult<Json<UpdateSettingsR
         .await
         .map_err(|_| ApiError::UserNotFound)?;
 
-    // Update bio and email
+    // Update bio, email, and email notifications
     user = user.set_bio(payload.bio)
         .map_err(|e| ApiError::ValidationError(e.to_string()))?
         .set_email(payload.email)
-        .map_err(|e| ApiError::ValidationError(e.to_string()))?;
+        .map_err(|e| ApiError::ValidationError(e.to_string()))?
+        .set_email_notifications(payload.email_notifications);
 
     // If password is provided, validate and update it
     if !payload.password.is_empty() {

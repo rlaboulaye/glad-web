@@ -14,6 +14,7 @@
 	let email = '';
 	let password = '';
 	let confirmPassword = '';
+	let emailNotifications = false;
 
 	// Load current user data
 	onMount(async () => {
@@ -26,6 +27,7 @@
 				currentUser = await response.json();
 				bio = currentUser.bio || '';
 				email = currentUser.email || '';
+				emailNotifications = currentUser.email_notifications || false;
 			} else {
 				toast.error('Failed to load user data');
 				goto('/login');
@@ -65,7 +67,8 @@
 					bio: bio.trim(),
 					email: email.trim(),
 					password: password,
-					confirm_password: confirmPassword
+					confirm_password: confirmPassword,
+					email_notifications: emailNotifications
 				})
 			});
 
@@ -77,7 +80,7 @@
 				password = '';
 				confirmPassword = '';
 				// Update current user data
-				currentUser = { ...currentUser, bio: bio.trim(), email: email.trim() };
+				currentUser = { ...currentUser, bio: bio.trim(), email: email.trim(), email_notifications: emailNotifications };
 			} else {
 				toast.error(result.error || 'Failed to update settings');
 			}
@@ -159,6 +162,34 @@
 						placeholder="Email"
 						class="mt-1 mb-4 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white disabled:opacity-50"
 					/>
+				</div>
+
+				<div>
+					<div class="flex items-center justify-between">
+						<div>
+							<label for="emailNotifications" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+								Email Notifications
+							</label>
+							<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+								Receive email notifications when your queries are completed or errored
+							</p>
+						</div>
+						<div class="ml-4">
+							<button
+								type="button"
+								on:click={() => emailNotifications = !emailNotifications}
+								disabled={loading}
+								class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed {emailNotifications ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-600'}"
+								role="switch"
+								aria-checked={emailNotifications}
+								aria-labelledby="emailNotifications"
+							>
+								<span 
+									class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {emailNotifications ? 'translate-x-5' : 'translate-x-0'}"
+								></span>
+							</button>
+						</div>
+					</div>
 				</div>
 
 				<div>

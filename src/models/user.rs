@@ -16,6 +16,7 @@ pub struct User {
     password: Option<String>,
     email: String,
     bio: Option<String>,
+    email_notifications: bool,
 }
 
 static EMAIL_REGEX: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -32,6 +33,10 @@ impl User {
     #[inline]
     pub fn bio(&self) -> Option<String> {
         self.bio.clone()
+    }
+    #[inline]
+    pub fn email_notifications(&self) -> bool {
+        self.email_notifications
     }
 
     /// Validate password meets minimum requirements
@@ -79,11 +84,15 @@ impl User {
         Ok(self)
     }
 
+    pub fn set_email_notifications(mut self, email_notifications: bool) -> Self {
+        self.email_notifications = email_notifications;
+        self
+    }
+
     pub async fn get(username: String) -> Result<Self, crate::models::DatabaseError> {
         sqlx::query_as!(
             Self,
-            //"SELECT username, email, bio, NULL as \"password: Option<String>\" FROM user WHERE username=$1",
-            "SELECT username, email, bio, password FROM user WHERE username=$1",
+            "SELECT username, email, bio, password, email_notifications FROM user WHERE username=$1",
             username
         )
         .fetch_one(crate::database::get_db())
@@ -97,8 +106,7 @@ impl User {
     pub async fn get_email(email: String) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Self,
-            //"SELECT username, email, bio, NULL as password FROM user WHERE email=$1",
-            "SELECT username, email, bio, password FROM user WHERE email=$1",
+            "SELECT username, email, bio, password, email_notifications FROM user WHERE email=$1",
             email
         )
         .fetch_one(crate::database::get_db())
@@ -117,11 +125,12 @@ impl User {
         let bio = self.bio.as_deref().unwrap_or("");
         
         sqlx::query!(
-            "INSERT INTO user(username, bio, email, password) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO user(username, bio, email, password, email_notifications) VALUES ($1, $2, $3, $4, $5)",
             self.username,
             bio,
             self.email,
             password,
+            self.email_notifications,
         )
         .execute(crate::database::get_db())
         .await
@@ -135,21 +144,23 @@ impl User {
                     .await
                     .expect("Failed to hash password");
                 sqlx::query!(
-                    "UPDATE user SET bio=$2, email=$3, password=$4 WHERE username=$1",
+                    "UPDATE user SET bio=$2, email=$3, password=$4, email_notifications=$5 WHERE username=$1",
                     self.username,
                     self.bio,
                     self.email,
                     password,
+                    self.email_notifications,
                 )
                 .execute(crate::database::get_db())
                 .await
             }
             None => {
                 sqlx::query!(
-                    "UPDATE user SET bio=$2, email=$3 WHERE username=$1",
+                    "UPDATE user SET bio=$2, email=$3, email_notifications=$4 WHERE username=$1",
                     self.username,
                     self.bio,
                     self.email,
+                    self.email_notifications,
                 )
                 .execute(crate::database::get_db())
                 .await
