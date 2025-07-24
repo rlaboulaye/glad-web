@@ -3,10 +3,19 @@
 	import { toast } from '$lib/toast.js';
 	import { setUser } from '$lib/auth.js';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	let username = '';
 	let password = '';
 	let loading = false;
+	let redirectUrl = '/';
+
+	// Get redirect URL from query parameters, with security check
+	$: {
+		const redirect = $page.url.searchParams.get('redirect');
+		// Only allow internal redirects (must start with /) to prevent open redirect attacks
+		redirectUrl = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/';
+	}
 
 	async function handleSubmit() {
 		if (loading) return;
@@ -18,7 +27,7 @@
 			// Update auth store with user data
 			setUser({ username });
 			toast.success('Login successful');
-			goto('/');
+			goto(redirectUrl);
 		} catch (err) {
 			toast.error(err.message || 'Incorrect username or password');
 		} finally {

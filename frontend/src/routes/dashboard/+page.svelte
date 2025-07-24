@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { user } from '$lib/auth.js';
 	import { toast } from '$lib/toast.js';
 
@@ -50,7 +51,7 @@
 	// Load user queries
 	onMount(async () => {
 		if (!$user) {
-			goto('/login');
+			goto(`/login?redirect=${encodeURIComponent($page.url.pathname + $page.url.search)}`);
 			return;
 		}
 

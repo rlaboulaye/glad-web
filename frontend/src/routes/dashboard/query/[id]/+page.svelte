@@ -91,7 +91,7 @@
 	// Load query details - reactive to queryId changes
 	async function loadQuery() {
 		if (!$user) {
-			goto('/login');
+			goto(`/login?redirect=${encodeURIComponent($page.url.pathname + $page.url.search)}`);
 			return;
 		}
 
@@ -130,7 +130,7 @@
 	// Initial load
 	onMount(() => {
 		if (!$user) {
-			goto('/login');
+			goto(`/login?redirect=${encodeURIComponent($page.url.pathname + $page.url.search)}`);
 			return;
 		}
 		

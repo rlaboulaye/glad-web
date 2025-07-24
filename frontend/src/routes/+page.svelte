@@ -42,7 +42,7 @@
 				Explore Cohorts
 			</a>
 			<a
-				href={$user ? "/find" : "/login"}
+				href={$user ? "/find" : "/login?redirect=%2Ffind"}
 				class="inline-flex items-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-green-600 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:bg-gray-800 dark:text-green-400 dark:hover:bg-gray-700 transition-colors duration-200"
 			>
 				<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

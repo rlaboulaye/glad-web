@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { user } from '$lib/auth.js';
 	import { toast } from '$lib/toast.js';
 
@@ -74,6 +75,12 @@
 
 	// Load cohorts on mount
 	onMount(async () => {
+		// Redirect to login if not authenticated
+		if (!$user) {
+			goto(`/login?redirect=${encodeURIComponent($page.url.pathname + $page.url.search)}`);
+			return;
+		}
+
 		try {
 			const response = await fetch('/api/cohorts', {
 				credentials: 'include'
@@ -180,13 +187,7 @@
 			</p>
 		</div>
 
-		<!-- Status Messages -->
-		{#if !$user}
-			<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
-				<strong>Error:</strong> You must be logged in to submit queries.
-			</div>
-		{:else}
-			<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-8">
+		<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-8">
 				<form on:submit|preventDefault={handleSubmit} class="space-y-6">
 					<!-- Title -->
 					<div>
@@ -362,7 +363,7 @@
 					<div class="flex justify-end">
 						<button
 							type="submit"
-							disabled={loading || !$user || !selectedFile}
+							disabled={loading || !selectedFile}
 							class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 						>
 							{#if loading}
@@ -377,7 +378,6 @@
 						</button>
 					</div>
 				</form>
-			</div>
-		{/if}
+		</div>
 	</div>
 </div>

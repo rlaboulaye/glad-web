@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { user } from '$lib/auth.js';
 	import { toast } from '$lib/toast.js';
 	import { PASSWORD_MIN_LENGTH } from '$lib/constants.js';
@@ -30,11 +31,11 @@
 				emailNotifications = currentUser.email_notifications || false;
 			} else {
 				toast.error('Failed to load user data');
-				goto('/login');
+				goto(`/login?redirect=${encodeURIComponent($page.url.pathname + $page.url.search)}`);
 			}
 		} catch (err) {
 			toast.error('Failed to load user data');
-			goto('/login');
+			goto(`/login?redirect=${encodeURIComponent($page.url.pathname + $page.url.search)}`);
 		} finally {
 			initialLoading = false;
 		}
