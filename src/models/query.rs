@@ -103,7 +103,7 @@ impl Query {
                 .await
                 .expect(&format!("Could not retrieve user_id using username {}", username));
         sqlx::query!(
-            "SELECT query_id, user_id, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE user_id=$1",
+            "SELECT query_id, user_id, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE user_id=$1 ORDER BY created_at DESC",
             logged_user_id,
         )
         .map(|x| Self {

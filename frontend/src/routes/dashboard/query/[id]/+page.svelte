@@ -4,12 +4,45 @@
 	import { page } from '$app/stores';
 	import { user } from '$lib/auth.js';
 	import { toast } from '$lib/toast.js';
+	import { notifications, fetchNotifications } from '$lib/notifications.js';
 
 	let query = null;
 	let loading = true;
 
 	// Get query ID from URL parameters
 	$: queryId = $page.params.id;
+
+	// Auto-mark notifications as read for this query
+	async function markQueryNotificationsAsRead() {
+		try {
+			// Get current notifications
+			await fetchNotifications();
+			
+			// Find unread notifications for this query
+			const queryNotifications = $notifications.filter(n => 
+				!n.is_read && n.query_id === parseInt(queryId)
+			);
+			
+			if (queryNotifications.length > 0) {
+				const notificationIds = queryNotifications.map(n => n.notification_id);
+				const response = await fetch('/api/notifications/mark-read', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					credentials: 'include',
+					body: JSON.stringify({ notification_ids: notificationIds })
+				});
+				
+				if (response.ok) {
+					// Refresh notifications to update the UI
+					await fetchNotifications();
+				}
+			}
+		} catch (error) {
+			console.error('Failed to mark query notifications as read:', error);
+		}
+	}
 
 	// Format date for display
 	function formatDate(dateString) {
@@ -55,12 +88,15 @@
 		}
 	}
 
-	// Load query details
-	onMount(async () => {
+	// Load query details - reactive to queryId changes
+	async function loadQuery() {
 		if (!$user) {
 			goto('/login');
 			return;
 		}
+
+		loading = true;
+		query = null;
 
 		try {
 			const response = await fetch(`/api/queries/${queryId}`, {
@@ -69,6 +105,8 @@
 			
 			if (response.ok) {
 				query = await response.json();
+				// Auto-mark notifications as read for this query
+				await markQueryNotificationsAsRead();
 			} else if (response.status === 404) {
 				toast.error('Query not found');
 				goto('/dashboard');
@@ -81,6 +119,18 @@
 			goto('/dashboard');
 		} finally {
 			loading = false;
+		}
+	}
+
+	// React to queryId changes (when navigating between different query pages)
+	$: if (queryId && $user) {
+		loadQuery();
+	}
+
+	// Initial load
+	onMount(() => {
+		if (queryId && $user) {
+			loadQuery();
 		}
 	});
 </script>

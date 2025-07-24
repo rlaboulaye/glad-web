@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { derived } from 'svelte/store';
 	import { onMount } from 'svelte';
-	import { unreadCount, isNotificationPanelOpen, fetchUnreadCount, toggleNotificationPanel, closeNotificationPanel } from '$lib/notifications.js';
+	import { unreadCount, isNotificationPanelOpen, fetchUnreadCount, fetchNotifications, toggleNotificationPanel, closeNotificationPanel } from '$lib/notifications.js';
 	import NotificationPanel from './NotificationPanel.svelte';
 
 	let showMobileMenu = false;
@@ -48,19 +48,18 @@
 		await logout();
 	}
 
-	// Fetch unread count when user is authenticated
-	$: if ($user && !$isLoading) {
-		fetchUnreadCount().catch(console.error);
-	}
-
 	// Poll for new notifications every 30 seconds when user is logged in
 	onMount(() => {
 		let interval;
 		
 		const setupPolling = () => {
-			if ($user && !$isLoading) {
+			if ($user) {
+				// Initial fetch
+				fetchNotifications().catch(console.error);
+				
+				// Set up polling
 				interval = setInterval(() => {
-					fetchUnreadCount().catch(console.error);
+					fetchNotifications().catch(console.error);
 				}, 30000); // 30 seconds
 			}
 		};
@@ -84,9 +83,23 @@
 		};
 	});
 
-	function handleNotificationClick() {
+	function handleNotificationClick(event) {
+		// Check if panel is currently open before toggling
+		const wasOpen = $isNotificationPanelOpen;
+		
+		// Fetch notifications when panel is opened
+		fetchNotifications().catch(console.error);
 		toggleNotificationPanel();
 		showUserMenu = false;
+		
+		// Only remove focus when closing the panel
+		if (wasOpen) {
+			// Find the button element (traverse up from the clicked element)
+			const buttonElement = event.target.closest('button');
+			if (buttonElement) {
+				buttonElement.blur();
+			}
+		}
 	}
 </script>
 
