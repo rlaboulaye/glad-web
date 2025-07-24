@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { toast } from '$lib/toast.js';
 	import Legend from './Legend.svelte';
+	import MetadataFieldSelector from './MetadataFieldSelector.svelte';
 
 	// Props
 	export let data: any[] = [];
@@ -318,27 +319,6 @@
 		return a.size === b.size && [...a].every(x => b.has(x));
 	}
 
-	// Get tooltip text for metadata fields
-	function getFieldTooltip(field: string): string {
-		switch (field) {
-			case 'phs':
-				return 'Unique identifier assigned to a phenotype study by dbGaP';
-			case 'country':
-				return 'Country where the sample was taken';
-			case 'region':
-				return 'Region where the sample was taken';
-			case 'sex':
-				return 'Reported sex of sample';
-			case 'ethnicity':
-				return 'One of ["Hispanic", "NotHispanic", "NativeAmerican"]';
-			case 'self_described':
-				return 'True if sample self-reported as "Hispanic"';
-			case 'ibd_community':
-				return 'Community assignment produced by running Infomap on total pairwise IBD between samples';
-			default:
-				return '';
-		}
-	}
 
 	// Handle field changes from parent
 	export function onFieldsChanged() {
@@ -350,6 +330,12 @@
 		if (selectedFields.size > 0 && isActive && data.length > 0) {
 			loadPcaGroups();
 		}
+	}
+
+	// Event handler for MetadataFieldSelector component
+	function handleFieldsChanged(event) {
+		selectedFields = event.detail;
+		onFieldsChanged();
 	}
 
 	// Reactive export to trigger parent updates when selections change
@@ -439,66 +425,14 @@
 	}
 </script>
 
-<!-- PCA Controls -->
-<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-	<div class="space-y-6">
-		<!-- Axis selectors -->
-		<div class="flex flex-wrap gap-6 items-center">
-			<label class="text-gray-700 dark:text-gray-300 font-semibold">
-				X Axis:
-				<select 
-					bind:value={pcX} 
-					on:change={updatePlot} 
-					class="ml-2 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-				>
-					{#each Array(10).fill(0).map((_, i) => i) as i}
-						<option value={i}>PC{i + 1}</option>
-					{/each}
-				</select>
-			</label>
 
-			<label class="text-gray-700 dark:text-gray-300 font-semibold">
-				Y Axis:
-				<select 
-					bind:value={pcY} 
-					on:change={updatePlot} 
-					class="ml-2 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-				>
-					{#each Array(10).fill(0).map((_, i) => i) as i}
-						<option value={i}>PC{i + 1}</option>
-					{/each}
-				</select>
-			</label>
-		</div>
-
-		<!-- Metadata fields selector -->
-		<div>
-			<p class="text-gray-700 dark:text-gray-300 mb-3 font-semibold">Color and Filter by Metadata Fields:</p>
-			<div class="flex flex-wrap gap-2">
-				{#each availableFields as field}
-					<button
-						class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
-							{selectedFields.has(field)
-								? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
-								: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
-						title={getFieldTooltip(field)}
-						on:click={() => {
-							if (selectedFields.has(field)) {
-								selectedFields.delete(field);
-							} else {
-								selectedFields.add(field);
-							}
-							selectedFields = selectedFields;
-							onFieldsChanged();
-						}}
-					>
-						{field}
-					</button>
-				{/each}
-			</div>
-		</div>
-	</div>
-</div>
+<!-- PCA Metadata Fields Selector -->
+<MetadataFieldSelector 
+	{availableFields}
+	bind:selectedFields
+	proposeAsymmetric={false}
+	on:fieldsChanged={handleFieldsChanged}
+/>
 
 <!-- PCA Group Selection -->
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
@@ -612,6 +546,35 @@
 		{#if legendData.length > 0}
 			<div class="w-48 flex-shrink-0">
 				<div class="h-full flex flex-col">
+					<!-- Axis selectors -->
+					<div class="mb-4 space-y-3">
+						<label class="block text-gray-700 dark:text-gray-300 text-sm font-semibold">
+							X Axis:
+							<select 
+								bind:value={pcX} 
+								on:change={updatePlot} 
+								class="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+							>
+								{#each Array(10).fill(0).map((_, i) => i) as i}
+									<option value={i}>PC{i + 1}</option>
+								{/each}
+							</select>
+						</label>
+
+						<label class="block text-gray-700 dark:text-gray-300 text-sm font-semibold">
+							Y Axis:
+							<select 
+								bind:value={pcY} 
+								on:change={updatePlot} 
+								class="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+							>
+								{#each Array(10).fill(0).map((_, i) => i) as i}
+									<option value={i}>PC{i + 1}</option>
+								{/each}
+							</select>
+						</label>
+					</div>
+
 					<div class="mb-3">
 						<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Legend</h3>
 						<p class="text-xs text-gray-600 dark:text-gray-400 mt-1">

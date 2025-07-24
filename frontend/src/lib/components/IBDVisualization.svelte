@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { toast } from '$lib/toast.js';
+	import MetadataFieldSelector from './MetadataFieldSelector.svelte';
 
 	// Props
 	export let availableFields: string[];
@@ -27,13 +28,10 @@
 	let selectedXGroups = new Set<string>();
 	let selectedYGroups = new Set<string>();
 
-	function toggleIbdField(field: string) {
-		if (selectedFields.has(field)) {
-			selectedFields.delete(field);
-		} else {
-			selectedFields.add(field);
-		}
-		selectedFields = selectedFields; // Trigger reactivity
+
+	// Event handlers for MetadataFieldSelector component
+	function handleFieldsChanged(event) {
+		selectedFields = event.detail;
 		// Reset groups when grouping changes
 		ibdGroups = [];
 		selectedGroups = new Set();
@@ -42,8 +40,18 @@
 		}
 	}
 
-	function toggleAsymmetricMode() {
-		asymmetricMode = !asymmetricMode;
+	function handleXFieldsChanged(event) {
+		ibdXFields = event.detail;
+		loadAsymmetricGroups();
+	}
+
+	function handleYFieldsChanged(event) {
+		ibdYFields = event.detail;
+		loadAsymmetricGroups();
+	}
+
+	function handleAsymmetricModeToggled(event) {
+		asymmetricMode = event.detail;
 		
 		if (asymmetricMode) {
 			// Copy current symmetric fields to both X and Y
@@ -66,24 +74,6 @@
 				loadIbdGroups();
 			}
 		}
-	}
-
-	function toggleIbdXField(field: string) {
-		if (ibdXFields.has(field)) {
-			ibdXFields = new Set([...ibdXFields].filter(f => f !== field));
-		} else {
-			ibdXFields = new Set([field, ...ibdXFields]);
-		}
-		loadAsymmetricGroups();
-	}
-
-	function toggleIbdYField(field: string) {
-		if (ibdYFields.has(field)) {
-			ibdYFields = new Set([...ibdYFields].filter(f => f !== field));
-		} else {
-			ibdYFields = new Set([field, ...ibdYFields]);
-		}
-		loadAsymmetricGroups();
 	}
 
 	// IBD Heatmap functions
@@ -370,27 +360,6 @@
 		}
 	}
 
-	// Get tooltip text for metadata fields
-	function getFieldTooltip(field: string): string {
-		switch (field) {
-			case 'phs':
-				return 'Unique identifier assigned to a phenotype study by dbGaP';
-			case 'country':
-				return 'Country where the sample was taken';
-			case 'region':
-				return 'Region where the sample was taken';
-			case 'sex':
-				return 'Reported sex of sample';
-			case 'ethnicity':
-				return 'One of ["Hispanic", "NotHispanic", "NativeAmerican"]';
-			case 'self_described':
-				return 'True if sample self-reported as "Hispanic"';
-			case 'ibd_community':
-				return 'Community assignment produced by running Infomap on total pairwise IBD between samples';
-			default:
-				return '';
-		}
-	}
 
 	// Reactive export to trigger parent updates when selections change
 	export let queryGroupsUpdateTrigger = 0;
@@ -477,78 +446,18 @@
 </script>
 
 <!-- IBD Grouping Fields Selector -->
-<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-	<div class="space-y-4">
-		<div class="flex items-center justify-between">
-			<p class="text-gray-700 dark:text-gray-300 font-semibold">Group IBD Heatmap by Metadata Fields:</p>
-			<button
-				class="px-4 py-2 text-sm font-medium rounded-md border transition-colors duration-200 bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500"
-				on:click={toggleAsymmetricMode}
-			>
-				{asymmetricMode ? '🔄 Switch to Symmetric' : '🔄 Switch to Asymmetric'}
-			</button>
-		</div>
-		
-		{#if !asymmetricMode}
-			<!-- Symmetric mode field selector -->
-			<div class="flex flex-wrap gap-2">
-				{#each availableFields as field}
-					<button
-						class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
-							{selectedFields.has(field)
-								? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
-								: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
-						title={getFieldTooltip(field)}
-						on:click={() => toggleIbdField(field)}
-					>
-						{field}
-					</button>
-				{/each}
-			</div>
-		{:else}
-			<!-- Asymmetric mode X/Y axis selectors -->
-			<div class="space-y-4">
-				<!-- X Axis -->
-				<div>
-					<p class="text-gray-700 dark:text-gray-300 mb-2 font-medium">X Axis:</p>
-					<div class="flex flex-wrap gap-2">
-						{#each availableFields as field}
-							<button
-								class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
-									{ibdXFields.has(field)
-										? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
-										: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
-								title={getFieldTooltip(field)}
-								on:click={() => toggleIbdXField(field)}
-							>
-								{field}
-							</button>
-						{/each}
-					</div>
-				</div>
-				
-				<!-- Y Axis -->
-				<div>
-					<p class="text-gray-700 dark:text-gray-300 mb-2 font-medium">Y Axis:</p>
-					<div class="flex flex-wrap gap-2">
-						{#each availableFields as field}
-							<button
-								class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
-									{ibdYFields.has(field)
-										? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
-										: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
-								title={getFieldTooltip(field)}
-								on:click={() => toggleIbdYField(field)}
-							>
-								{field}
-							</button>
-						{/each}
-					</div>
-				</div>
-			</div>
-		{/if}
-	</div>
-</div>
+<MetadataFieldSelector 
+	{availableFields}
+	bind:selectedFields
+	bind:xFields={ibdXFields}
+	bind:yFields={ibdYFields}
+	bind:asymmetricMode
+	proposeAsymmetric={true}
+	on:fieldsChanged={handleFieldsChanged}
+	on:xFieldsChanged={handleXFieldsChanged}
+	on:yFieldsChanged={handleYFieldsChanged}
+	on:asymmetricModeToggled={handleAsymmetricModeToggled}
+/>
 
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 	<!-- IBD Controls -->
