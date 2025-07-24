@@ -263,10 +263,11 @@
 		const traces = filteredEntries.map(([key, group]) => ({
 			x: group.map(d => d.pc[pcX]),
 			y: group.map(d => d.pc[pcY]),
-			text: group.map(d => d.id),
+			text: group.map(d => key),
 			mode: 'markers',
 			type: 'scattergl',
 			name: `(${group.length}) ${key}`,
+			hovertemplate: `PC${pcX + 1}: %{x}<br>PC${pcY + 1}: %{y}<br>%{text}<extra></extra>`,
 			marker: {
 				size: 6,
 				opacity: 0.6,
