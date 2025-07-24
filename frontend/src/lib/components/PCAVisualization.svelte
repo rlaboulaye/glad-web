@@ -3,6 +3,7 @@
 	import { toast } from '$lib/toast.js';
 	import Legend from './Legend.svelte';
 	import MetadataFieldSelector from './MetadataFieldSelector.svelte';
+	import GroupSelector from './GroupSelector.svelte';
 
 	// Props
 	export let data: any[] = [];
@@ -113,24 +114,7 @@
 		}
 	}
 
-	function togglePcaGroup(groupLabel: string) {
-		if (selectedPcaGroups.has(groupLabel)) {
-			selectedPcaGroups = new Set([...selectedPcaGroups].filter(g => g !== groupLabel));
-		} else {
-			selectedPcaGroups = new Set([groupLabel, ...selectedPcaGroups]);
-		}
-		updatePlot();
-	}
 
-	function selectAllPcaGroups() {
-		selectedPcaGroups = new Set(pcaGroups.map(g => g.label));
-		updatePlot();
-	}
-
-	function deselectAllPcaGroups() {
-		selectedPcaGroups = new Set();
-		updatePlot();
-	}
 
 	function updatePlot() {
 		if (!data.length || !Plotly || !plotDiv) return;
@@ -338,6 +322,22 @@
 		onFieldsChanged();
 	}
 
+	// Event handlers for GroupSelector component
+	function handleGroupsChanged(event) {
+		selectedPcaGroups = event.detail;
+		updatePlot();
+	}
+
+	function handleSelectAll() {
+		selectedPcaGroups = new Set(pcaGroups.map(g => g.label));
+		updatePlot();
+	}
+
+	function handleDeselectAll() {
+		selectedPcaGroups = new Set();
+		updatePlot();
+	}
+
 	// Reactive export to trigger parent updates when selections change
 	export let queryGroupsUpdateTrigger = 0;
 	
@@ -435,93 +435,18 @@
 />
 
 <!-- PCA Group Selection -->
-<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-	<div class="space-y-6">
-		{#if selectedFields.size === 0}
-			<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
-				<div class="text-center">
-					<div class="text-3xl mb-2">🏷️</div>
-					<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Metadata Fields</h3>
-					<p class="text-gray-600 dark:text-gray-400">
-						Choose metadata fields above to group the data
-					</p>
-				</div>
-			</div>
-		{:else}
-			<!-- Group Selection -->
-			<div>
-				<div class="flex items-center justify-between mb-4">
-					<div>
-						<p class="text-gray-700 dark:text-gray-300 font-semibold">Group Selection:</p>
-						<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-							Choose groups to display in the PCA plot ({selectedPcaGroups.size} selected)
-						</p>
-					</div>
-					<div class="flex items-center space-x-3">
-						{#if pcaGroups.length > 0}
-							<button
-								class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors duration-200"
-								on:click={selectAllPcaGroups}
-							>
-								Select All
-							</button>
-							<button
-								class="px-3 py-1.5 text-sm font-medium transition-colors duration-200 rounded-md
-									{selectedPcaGroups.size > 0 
-										? 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500' 
-										: 'text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 cursor-not-allowed'}"
-								on:click={deselectAllPcaGroups}
-								disabled={selectedPcaGroups.size === 0}
-							>
-								Deselect All
-							</button>
-						{/if}
-					</div>
-				</div>
-
-				{#if pcaGroups.length > 0}
-					<div class="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-						<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-							{#each pcaGroups as group}
-								<button
-									class="px-3 py-2 text-left rounded border text-sm transition-colors duration-200 cursor-pointer select-none
-										{selectedPcaGroups.has(group.label)
-											? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
-											: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
-									on:click={() => togglePcaGroup(group.label)}
-									disabled={pcaGroupsLoading}
-								>
-									<div class="flex items-center space-x-2">
-										<!-- Color dot -->
-										<div 
-											class="w-3 h-3 rounded-full border border-gray-300 dark:border-gray-500 flex-shrink-0
-												{selectedPcaGroups.has(group.label) ? 'border-white' : ''}"
-											style="background-color: {getGroupColor(group.label)}"
-										></div>
-										<div class="flex-1 min-w-0">
-											<div class="font-medium truncate">{group.label}</div>
-											<div class="text-xs opacity-75">{group.size} individuals</div>
-										</div>
-									</div>
-								</button>
-							{/each}
-						</div>
-					</div>
-				{:else if pcaGroupsLoading}
-					<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
-						<div class="text-center">
-							<svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-							</svg>
-							<p class="text-sm text-gray-600 dark:text-gray-400">Loading groups...</p>
-						</div>
-					</div>
-				{/if}
-			</div>
-		{/if}
-	</div>
-</div>
+<GroupSelector 
+	groups={pcaGroups}
+	bind:selectedGroups={selectedPcaGroups}
+	loading={pcaGroupsLoading}
+	description="Choose groups to display in the PCA plot"
+	enableSelectAll={true}
+	showColorDots={true}
+	{getGroupColor}
+	on:groupsChanged={handleGroupsChanged}
+	on:selectAll={handleSelectAll}
+	on:deselectAll={handleDeselectAll}
+/>
 
 <!-- PCA Plot container with integrated legend -->
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">

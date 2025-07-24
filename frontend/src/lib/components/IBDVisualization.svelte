@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { toast } from '$lib/toast.js';
 	import MetadataFieldSelector from './MetadataFieldSelector.svelte';
+	import GroupSelector from './GroupSelector.svelte';
 
 	// Props
 	export let availableFields: string[];
@@ -76,45 +77,35 @@
 		}
 	}
 
-	// IBD Heatmap functions
-	function toggleGroup(groupLabel: string) {
-		if (selectedGroups.has(groupLabel)) {
-			selectedGroups = new Set([...selectedGroups].filter(g => g !== groupLabel));
-		} else {
-			selectedGroups = new Set([groupLabel, ...selectedGroups]);
-		}
+	// Event handlers for GroupSelector component
+	function handleGroupsChanged(event) {
+		selectedGroups = event.detail;
 		updateHeatmap();
 	}
 
-	function deselectAllGroups() {
+	function handleXGroupsChanged(event) {
+		selectedXGroups = event.detail;
+		updateAsymmetricHeatmap();
+	}
+
+	function handleYGroupsChanged(event) {
+		selectedYGroups = event.detail;
+		updateAsymmetricHeatmap();
+	}
+
+	function handleDeselectAllGroups() {
 		selectedGroups = new Set();
 	}
 
-	function toggleXGroup(groupLabel: string) {
-		if (selectedXGroups.has(groupLabel)) {
-			selectedXGroups = new Set([...selectedXGroups].filter(g => g !== groupLabel));
-		} else {
-			selectedXGroups = new Set([groupLabel, ...selectedXGroups]);
-		}
-		updateAsymmetricHeatmap();
-	}
-
-	function toggleYGroup(groupLabel: string) {
-		if (selectedYGroups.has(groupLabel)) {
-			selectedYGroups = new Set([...selectedYGroups].filter(g => g !== groupLabel));
-		} else {
-			selectedYGroups = new Set([groupLabel, ...selectedYGroups]);
-		}
-		updateAsymmetricHeatmap();
-	}
-
-	function deselectAllXGroups() {
+	function handleDeselectAllXGroups() {
 		selectedXGroups = new Set();
 	}
 
-	function deselectAllYGroups() {
+	function handleDeselectAllYGroups() {
 		selectedYGroups = new Set();
 	}
+
+	// IBD Heatmap functions
 
 	async function loadIbdGroups() {
 		// Don't load if no fields are selected
@@ -459,184 +450,29 @@
 	on:asymmetricModeToggled={handleAsymmetricModeToggled}
 />
 
+<!-- IBD Group Selection -->
+<GroupSelector 
+	groups={ibdGroups}
+	bind:selectedGroups
+	loading={ibdLoading}
+	description="Choose groups to visualize Identity-by-Descent patterns"
+	enableSelectAll={false}
+	bind:asymmetricMode
+	xGroups={ibdXGroups}
+	yGroups={ibdYGroups}
+	bind:selectedXGroups
+	bind:selectedYGroups
+	on:groupsChanged={handleGroupsChanged}
+	on:xGroupsChanged={handleXGroupsChanged}
+	on:yGroupsChanged={handleYGroupsChanged}
+	on:deselectAll={handleDeselectAllGroups}
+/>
+
+<!-- IBD Heatmap container -->
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-	<!-- IBD Controls -->
-	<div class="space-y-6">
-		{#if (!asymmetricMode && selectedFields.size === 0) || (asymmetricMode && (ibdXFields.size === 0 || ibdYFields.size === 0))}
-			<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
-				<div class="text-center">
-					<div class="text-3xl mb-2">🏷️</div>
-					<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Metadata Fields</h3>
-					<p class="text-gray-600 dark:text-gray-400">
-						Choose metadata fields above to group the data
-					</p>
-				</div>
-			</div>
-		{:else if !asymmetricMode}
-			<!-- Symmetric mode group selection -->
-			<div>
-				<div class="flex items-center justify-between mb-4">
-					<div>
-						<p class="text-gray-700 dark:text-gray-300 font-semibold">Group Selection:</p>
-						<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-							Choose groups to visualize Identity-by-Descent patterns ({selectedGroups.size} selected)
-						</p>
-					</div>
-				<div class="flex items-center space-x-3">
-					<button
-						class="px-3 py-1.5 text-sm font-medium transition-colors duration-200 rounded-md
-							{selectedGroups.size > 0 
-								? 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500' 
-								: 'text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 cursor-not-allowed'}"
-						on:click={deselectAllGroups}
-						disabled={selectedGroups.size === 0}
-					>
-						Deselect All
-					</button>
-				</div>
-			</div>
-
-			{#if ibdGroups.length > 0}
-				<div class="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-						{#each ibdGroups as group}
-							<button
-								class="px-3 py-2 text-left rounded border text-sm transition-colors duration-200 cursor-pointer select-none
-									{selectedGroups.has(group.label)
-										? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
-										: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
-								on:click={() => toggleGroup(group.label)}
-								disabled={ibdLoading}
-							>
-								<div class="font-medium">{group.label}</div>
-								<div class="text-xs opacity-75">{group.size} individuals</div>
-							</button>
-						{/each}
-					</div>
-				</div>
-			{:else}
-				<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
-					<div class="text-center">
-						<svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 718-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-						<p class="text-sm text-gray-600 dark:text-gray-400">Loading groups...</p>
-					</div>
-				</div>
-			{/if}
-		</div>
-		{:else}
-			<!-- Asymmetric mode group selection -->
-			<div class="space-y-6">
-				<!-- X Axis Groups -->
-				<div>
-					<div class="flex items-center justify-between mb-4">
-						<div>
-							<p class="text-gray-700 dark:text-gray-300 font-semibold">X Axis Groups:</p>
-							<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-								Choose X-axis groups ({selectedXGroups.size} selected)
-							</p>
-						</div>
-						<div class="flex items-center space-x-3">
-							{#if selectedXGroups.size > 0}
-								<button
-									class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors duration-200"
-									on:click={deselectAllXGroups}
-								>
-									Deselect All
-								</button>
-							{/if}
-						</div>
-					</div>
-
-					{#if ibdXGroups.length > 0}
-						<div class="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-							<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-								{#each ibdXGroups as group}
-									<button
-										class="px-3 py-2 text-left rounded border text-sm transition-colors duration-200 cursor-pointer select-none
-											{selectedXGroups.has(group.label)
-												? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
-												: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
-										on:click={() => toggleXGroup(group.label)}
-										disabled={ibdLoading}
-									>
-										<div class="font-medium">{group.label}</div>
-										<div class="text-xs opacity-75">{group.size} individuals</div>
-									</button>
-								{/each}
-							</div>
-						</div>
-					{:else}
-						<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
-							<div class="text-center">
-								<svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 718-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-								</svg>
-								<p class="text-sm text-gray-600 dark:text-gray-400">Loading X groups...</p>
-							</div>
-						</div>
-					{/if}
-				</div>
-
-				<!-- Y Axis Groups -->
-				<div>
-					<div class="flex items-center justify-between mb-4">
-						<div>
-							<p class="text-gray-700 dark:text-gray-300 font-semibold">Y Axis Groups:</p>
-							<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-								Choose Y-axis groups ({selectedYGroups.size} selected)
-							</p>
-						</div>
-						<div class="flex items-center space-x-3">
-							{#if selectedYGroups.size > 0}
-								<button
-									class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors duration-200"
-									on:click={deselectAllYGroups}
-								>
-									Deselect All
-								</button>
-							{/if}
-						</div>
-					</div>
-
-					{#if ibdYGroups.length > 0}
-						<div class="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-							<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-								{#each ibdYGroups as group}
-									<button
-										class="px-3 py-2 text-left rounded border text-sm transition-colors duration-200 cursor-pointer select-none
-											{selectedYGroups.has(group.label)
-												? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
-												: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
-										on:click={() => toggleYGroup(group.label)}
-										disabled={ibdLoading}
-									>
-										<div class="font-medium">{group.label}</div>
-										<div class="text-xs opacity-75">{group.size} individuals</div>
-									</button>
-								{/each}
-							</div>
-						</div>
-					{:else}
-						<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
-							<div class="text-center">
-								<svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-								</svg>
-								<p class="text-sm text-gray-600 dark:text-gray-400">Loading Y groups...</p>
-							</div>
-						</div>
-					{/if}
-				</div>
-			</div>
-		{/if}
-		
-		<!-- Log Scale Toggle (moved below community selection) -->
-		<div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-600">
+	<!-- Log Scale Toggle -->
+	{#if ((!asymmetricMode && selectedGroups.size > 0) || (asymmetricMode && selectedXGroups.size > 0 && selectedYGroups.size > 0))}
+		<div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-600">
 			<div>
 				<p class="text-gray-700 dark:text-gray-300 font-medium">Visualization Scale</p>
 				<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -651,11 +487,8 @@
 				<span class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">Log₁₀</span>
 			</label>
 		</div>
-	</div>
-</div>
+	{/if}
 
-<!-- IBD Heatmap container -->
-<div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 	{#if (!asymmetricMode && selectedGroups.size === 0) || (asymmetricMode && (selectedXGroups.size === 0 || selectedYGroups.size === 0))}
 		<div class="w-full h-[600px] md:h-[700px] lg:h-[750px] flex items-center justify-center">
 			<div class="text-center">
