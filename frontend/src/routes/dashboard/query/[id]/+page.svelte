@@ -129,6 +129,11 @@
 
 	// Initial load
 	onMount(() => {
+		if (!$user) {
+			goto('/login');
+			return;
+		}
+		
 		if (queryId && $user) {
 			loadQuery();
 		}
