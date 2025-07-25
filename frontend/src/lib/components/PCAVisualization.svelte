@@ -9,6 +9,10 @@
 	export let data: any[] = [];
 	export let availableFields: string[];
 	export let selectedFields: Set<string>;
+	export let groups: Array<{label: string, size: number}> = [];
+	export let selectedGroups: Set<string> = new Set();
+	// Removed: loading is handled by parent component
+	// export let loading: boolean = false;
 	export let Plotly: any = null;
 	export let isActive: boolean = false;
 
@@ -22,11 +26,6 @@
 	let currentPcY = -1;
 	let currentSelectedFields = new Set<string>();
 	let plotInitialized = false;
-	
-	// PCA group selection
-	let pcaGroups: Array<{label: string, size: number}> = [];
-	let selectedPcaGroups = new Set<string>();
-	let pcaGroupsLoading = false;
 
 	// Controlled color palette for predictable group colors
 	const COLOR_PALETTE = [
@@ -51,7 +50,7 @@
 
 	// Update legend data reactively when groups or fields change
 	$: {
-		if (data.length > 0 && selectedPcaGroups.size > 0 && selectedFields.size > 0) {
+		if (data.length > 0 && selectedGroups.size > 0 && selectedFields.size > 0) {
 			legendData = getLegendData();
 		} else {
 			legendData = [];
@@ -69,50 +68,10 @@
 			const colorIndex = Math.abs(hash) % COLOR_PALETTE.length;
 			groupColorMap.set(groupLabel, COLOR_PALETTE[colorIndex]);
 			
-			// Debug: log color assignments for common groups
-			if (['Male', 'Female', 'Hispanic', 'NotHispanic', 'NativeAmerican'].includes(groupLabel)) {
-				console.log(`Color assignment: ${groupLabel} -> index ${colorIndex} -> ${COLOR_PALETTE[colorIndex]}`);
-			}
 		}
 		return groupColorMap.get(groupLabel)!;
 	}
 
-	// PCA Group Selection Functions
-	function loadPcaGroups() {
-		if (!data.length) return;
-		
-		pcaGroupsLoading = true;
-		
-		try {
-			// Generate groups from current data and field selection
-			const orderedFields = availableFields.filter(f => selectedFields.has(f));
-			const grouped = new Map<string, any[]>();
-
-			for (const d of data) {
-				const key = orderedFields.length > 0
-					? orderedFields.map(f => d[f] ?? 'Unknown').join(' | ')
-					: 'All';
-
-				if (!grouped.has(key)) grouped.set(key, []);
-				grouped.get(key)!.push(d);
-			}
-
-			// Convert to group objects and sort by size (descending)
-			pcaGroups = Array.from(grouped.entries())
-				.map(([label, individuals]) => ({ label, size: individuals.length }))
-				.sort((a, b) => b.size - a.size);
-
-			// Pre-select top 16 groups for default view
-			const topGroups = pcaGroups.slice(0, 16).map(g => g.label);
-			selectedPcaGroups = new Set(topGroups);
-			
-		} catch (err) {
-			toast.error('Failed to load PCA groups');
-			console.error('Error loading PCA groups:', err);
-		} finally {
-			pcaGroupsLoading = false;
-		}
-	}
 
 
 
@@ -148,13 +107,13 @@
 
 	function handleGroupSelectionChanges(orderedFields: string[]) {
 		// Find groups that need to be added (new selections not yet rendered)
-		const toAdd = [...selectedPcaGroups].filter(group => !renderedTraces.has(group));
+		const toAdd = [...selectedGroups].filter(group => !renderedTraces.has(group));
 		
 		// Find groups that need to be hidden (rendered but not selected)
-		const toHide = [...renderedTraces.keys()].filter(group => !selectedPcaGroups.has(group));
+		const toHide = [...renderedTraces.keys()].filter(group => !selectedGroups.has(group));
 		
 		// Find groups that need to be shown (rendered and selected)
-		const toShow = [...selectedPcaGroups].filter(group => renderedTraces.has(group));
+		const toShow = [...selectedGroups].filter(group => renderedTraces.has(group));
 
 		if (toAdd.length > 0) {
 			// Need to add new traces - full re-render required
@@ -172,7 +131,7 @@
 		
 		// Build visibility array based on trace order
 		for (const [groupLabel, traceIndex] of renderedTraces) {
-			if (selectedPcaGroups.has(groupLabel)) {
+			if (selectedGroups.has(groupLabel)) {
 				visibilityUpdates[traceIndex] = true;
 			} else {
 				visibilityUpdates[traceIndex] = false;
@@ -242,7 +201,7 @@
 
 		// Filter traces to only include selected groups
 		const filteredEntries = sortedEntries.filter(([key, group]) => 
-			selectedPcaGroups.has(key)
+			selectedGroups.has(key)
 		);
 
 		const traces = filteredEntries.map(([key, group]) => ({
@@ -306,14 +265,10 @@
 
 	// Handle field changes from parent
 	export function onFieldsChanged() {
-		// Reset PCA groups when fields change
-		pcaGroups = [];
-		selectedPcaGroups = new Set();
+		// Clear render optimizations when fields change (groups managed externally now)
 		renderedTraces = new Map(); // Clear trace tracking
 		groupColorMap = new Map(); // Clear color assignments for fresh mapping
-		if (selectedFields.size > 0 && isActive && data.length > 0) {
-			loadPcaGroups();
-		}
+		plotInitialized = false; // Force re-render
 	}
 
 	// Event handler for MetadataFieldSelector component
@@ -324,31 +279,24 @@
 
 	// Event handlers for GroupSelector component
 	function handleGroupsChanged(event) {
-		selectedPcaGroups = event.detail;
+		selectedGroups = event.detail;
 		updatePlot();
 	}
 
 	function handleSelectAll() {
-		selectedPcaGroups = new Set(pcaGroups.map(g => g.label));
+		selectedGroups = new Set(groups.map(g => g.label));
 		updatePlot();
 	}
 
 	function handleDeselectAll() {
-		selectedPcaGroups = new Set();
+		selectedGroups = new Set();
 		updatePlot();
 	}
 
-	// Reactive export to trigger parent updates when selections change
-	export let queryGroupsUpdateTrigger = 0;
-	
-	// Trigger parent update when PCA groups selection changes
-	$: if (selectedPcaGroups) {
-		queryGroupsUpdateTrigger = Date.now();
-	}
 
 	// Get available groups for query dropdown (filtered by minimum size and only selected groups)
 	export function getAvailableQueryGroups() {
-		if (!data.length || selectedPcaGroups.size === 0) return [];
+		if (!data.length || selectedGroups.size === 0) return [];
 		
 		const orderedFields = availableFields.filter(f => selectedFields.has(f));
 		const grouped = new Map<string, any[]>();
@@ -365,14 +313,14 @@
 		// Sorted by size (descending) with group name and count
 		const MIN_QUERY_GROUP_SIZE = 30;
 		return Array.from(grouped.entries())
-			.filter(([key, group]) => selectedPcaGroups.has(key) && group.length >= MIN_QUERY_GROUP_SIZE)
+			.filter(([key, group]) => selectedGroups.has(key) && group.length >= MIN_QUERY_GROUP_SIZE)
 			.sort((a, b) => b[1].length - a[1].length)
 			.map(([key, group]) => `(${group.length}) ${key}`);
 	}
 
 	// Get legend data for visible groups with colors and sizes
 	function getLegendData(): Array<{label: string, color: string, size: number}> {
-		if (!data.length || selectedPcaGroups.size === 0) return [];
+		if (!data.length || selectedGroups.size === 0) return [];
 		
 		const orderedFields = availableFields.filter(f => selectedFields.has(f));
 		const grouped = new Map<string, any[]>();
@@ -387,7 +335,7 @@
 		
 		// Return only selected groups with their colors and sizes
 		return Array.from(grouped.entries())
-			.filter(([key, group]) => selectedPcaGroups.has(key))
+			.filter(([key, group]) => selectedGroups.has(key))
 			.sort((a, b) => b[1].length - a[1].length)
 			.map(([key, group]) => ({
 				label: key,
@@ -397,63 +345,44 @@
 	}
 
 	// Handle PCA tab activation and plot rendering
-	$: if (isActive && data.length > 0 && Plotly && plotDiv) {
-		if (selectedFields.size > 0) {
-			if (pcaGroups.length === 0) {
-				// Need to load groups first
-				loadPcaGroups();
-			} else if (selectedPcaGroups.size > 0) {
-				// Groups are loaded and selected, render plot
-				// Force re-render by resetting plotInitialized flag
-				plotInitialized = false;
-				setTimeout(() => updatePlot(), 100);
-			}
+	$: if (isActive && data.length > 0 && Plotly && plotDiv && selectedFields.size > 0 && groups.length > 0 && selectedGroups.size > 0) {
+		// Groups are loaded and selected, render plot
+		if (!plotInitialized) {
+			setTimeout(() => updatePlot(), 100);
 		}
 	}
 
 	// Reset plot initialization when tab becomes active (handles tab switching)
-	$: if (isActive && pcaGroups.length > 0 && selectedPcaGroups.size > 0) {
+	$: if (isActive && groups.length > 0 && selectedGroups.size > 0) {
 		plotInitialized = false;
 	}
 
 	// Render plot when groups are loaded and selected (handles initial load)
-	$: if (isActive && pcaGroups.length > 0 && selectedPcaGroups.size > 0 && Plotly && plotDiv && data.length > 0) {
+	$: if (isActive && groups.length > 0 && selectedGroups.size > 0 && Plotly && plotDiv && data.length > 0) {
 		// Only render if plot hasn't been initialized
 		if (!plotInitialized) {
 			setTimeout(() => updatePlot(), 100);
 		}
 	}
+
+	// Clear plot when no metadata fields are selected
+	$: if (isActive && selectedFields.size === 0 && Plotly && plotDiv) {
+		Plotly.purge(plotDiv);
+		plotInitialized = false;
+		renderedTraces = new Map();
+		groupColorMap = new Map();
+	}
 </script>
 
 
-<!-- PCA Metadata Fields Selector -->
-<MetadataFieldSelector 
-	{availableFields}
-	bind:selectedFields
-	proposeAsymmetric={false}
-	on:fieldsChanged={handleFieldsChanged}
-/>
-
-<!-- PCA Group Selection -->
-<GroupSelector 
-	groups={pcaGroups}
-	bind:selectedGroups={selectedPcaGroups}
-	loading={pcaGroupsLoading}
-	description="Choose groups to display in the PCA plot"
-	enableSelectAll={true}
-	showColorDots={true}
-	{getGroupColor}
-	on:groupsChanged={handleGroupsChanged}
-	on:selectAll={handleSelectAll}
-	on:deselectAll={handleDeselectAll}
-/>
+<!-- Note: MetadataFieldSelector and GroupSelector are now handled by parent -->
 
 <!-- PCA Plot container with integrated legend -->
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 	<div class="flex h-[600px] md:h-[700px] lg:h-[750px] gap-4">
 		<!-- Plot area -->
 		<div class="flex-1 relative">
-			{#if selectedPcaGroups.size === 0}
+			{#if selectedGroups.size === 0}
 				<div class="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 z-10">
 					<div class="text-center">
 						<div class="text-4xl mb-4">📊</div>
