@@ -27,6 +27,41 @@
 	let plotRendering = false;
 	let heatmapData: any = null;
 	let logScale = false; // Toggle for log scale visualization
+	let maxColorValue = 1.0; // Maximum value for colorbar scale
+	
+	// Convert slider position to actual color value using logarithmic scale
+	function sliderToColorValue(sliderPos: number): number {
+		// Map slider (0-100) to logarithmic range (0.05-10)
+		const minVal = 0.05;
+		const maxVal = 10.0;
+		const logMin = Math.log(minVal);
+		const logMax = Math.log(maxVal);
+		
+		// Linear interpolation in log space
+		const logValue = logMin + (logMax - logMin) * (sliderPos / 100);
+		return Math.exp(logValue);
+	}
+	
+	// Convert color value back to slider position  
+	function colorValueToSlider(colorVal: number): number {
+		const minVal = 0.05;
+		const maxVal = 10.0;
+		const logMin = Math.log(minVal);
+		const logMax = Math.log(maxVal);
+		
+		const logValue = Math.log(Math.max(minVal, Math.min(maxVal, colorVal)));
+		return ((logValue - logMin) / (logMax - logMin)) * 100;
+	}
+	
+	// Initialize slider position based on default color value (1.0)
+	let sliderValue = colorValueToSlider(1.0); // ~67.7 for value 1.0
+	
+	// Update color value when slider changes
+	function handleSliderChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		sliderValue = parseFloat(target.value);
+		maxColorValue = sliderToColorValue(sliderValue);
+	}
 
 
 	// Event handlers for MetadataFieldSelector component
@@ -224,6 +259,8 @@
 			type: 'heatmap',
 			showscale: true,
 			hoverongaps: false,
+			zmin: logScale ? Math.log10(0.001) : 0, // Minimum colorbar value
+			zmax: logScale ? Math.log10(maxColorValue) : maxColorValue, // Maximum colorbar value
 			colorbar: {
 				title: logScale ? 'Mean IBD (log₁₀)' : 'Mean IBD',
 				titleside: 'right'
@@ -341,8 +378,8 @@
 		setTimeout(() => updateAsymmetricHeatmap(), 100);
 	}
 	
-	// Re-render heatmap when log scale toggle changes
-	$: if (isActive && heatmapData && Plotly && heatmapDiv && logScale !== undefined) {
+	// Re-render heatmap when scale settings change
+	$: if (isActive && heatmapData && Plotly && heatmapDiv && (logScale !== undefined || maxColorValue)) {
 		setTimeout(async () => await renderHeatmap(), 100);
 	}
 
@@ -353,26 +390,97 @@
 	}
 </script>
 
+<style>
+	/* Custom slider styling */
+	.slider::-webkit-slider-thumb {
+		appearance: none;
+		height: 20px;
+		width: 20px;
+		border-radius: 50%;
+		background: #4f46e5;
+		cursor: pointer;
+		border: 2px solid #ffffff;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+	}
+
+	.slider::-moz-range-thumb {
+		height: 20px;
+		width: 20px;
+		border-radius: 50%;
+		background: #4f46e5;
+		cursor: pointer;
+		border: 2px solid #ffffff;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+	}
+
+	.slider::-webkit-slider-track {
+		height: 8px;
+		border-radius: 4px;
+		background: #e5e7eb;
+	}
+
+	.slider::-moz-range-track {
+		height: 8px;
+		border-radius: 4px;
+		background: #e5e7eb;
+		border: none;
+	}
+
+	:global(.dark) .slider::-webkit-slider-track {
+		background: #374151;
+	}
+
+	:global(.dark) .slider::-moz-range-track {
+		background: #374151;
+	}
+</style>
+
 <!-- Note: MetadataFieldSelector and GroupSelector are now handled by parent -->
 
 <!-- IBD Heatmap container -->
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-	<!-- Log Scale Toggle -->
+	<!-- Visualization Scale Controls -->
 	{#if ((!asymmetricMode && selectedGroups.size > 0) || (asymmetricMode && selectedGroups.size > 0 && selectedYGroups.size > 0))}
-		<div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-600">
-			<div>
-				<p class="text-gray-700 dark:text-gray-300 font-medium">Visualization Scale</p>
-				<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-					Use logarithmic scale for better visualization of IBD range
-				</p>
-			</div>
+		<div class="mb-6 pb-4 border-b border-gray-200 dark:border-gray-600">
+			<p class="text-gray-700 dark:text-gray-300 font-medium mb-4">Visualization Scale</p>
 			
-			<!-- Switch Toggle -->
-			<label class="relative inline-flex items-center cursor-pointer">
-				<input type="checkbox" bind:checked={logScale} class="sr-only peer">
-				<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-				<span class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">Log₁₀</span>
-			</label>
+			<!-- Controls Row -->
+			<div class="flex items-center justify-between gap-8">
+				<!-- Colorbar Max Slider -->
+				<div class="flex-1 flex items-center gap-4">
+					<label for="max-color-slider" class="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+						Colorbar Max:
+					</label>
+					<div class="flex-1 flex items-center gap-3">
+						<input 
+							id="max-color-slider"
+							type="range" 
+							min="0" 
+							max="100" 
+							step="0.5" 
+							value={sliderValue}
+							on:input={handleSliderChange}
+							class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 slider"
+						>
+						<span class="text-sm text-gray-600 dark:text-gray-400 font-mono min-w-[3.5rem]">
+							{#if logScale}
+								{Math.log10(maxColorValue).toFixed(2)}
+							{:else}
+								{maxColorValue >= 1 ? maxColorValue.toFixed(1) : maxColorValue.toFixed(2)}
+							{/if}
+						</span>
+					</div>
+				</div>
+				
+				<!-- Log Scale Toggle -->
+				<div class="flex items-center gap-3">
+					<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Log₁₀ Scale:</span>
+					<label class="relative inline-flex items-center cursor-pointer">
+						<input type="checkbox" bind:checked={logScale} class="sr-only peer">
+						<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+					</label>
+				</div>
+			</div>
 		</div>
 	{/if}
 
