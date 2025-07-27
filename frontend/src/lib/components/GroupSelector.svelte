@@ -11,9 +11,7 @@
 	
 	// Asymmetric mode support
 	export let asymmetricMode: boolean = false;
-	export let xGroups: Array<{label: string, size: number}> = [];
 	export let yGroups: Array<{label: string, size: number}> = [];
-	export let selectedXGroups: Set<string> = new Set();
 	export let selectedYGroups: Set<string> = new Set();
 	
 	// PCA-specific features
@@ -32,12 +30,13 @@
 	}
 
 	function toggleXGroup(groupLabel: string) {
-		if (selectedXGroups.has(groupLabel)) {
-			selectedXGroups = new Set([...selectedXGroups].filter(g => g !== groupLabel));
+		// In asymmetric mode, X-axis uses main selectedGroups
+		if (selectedGroups.has(groupLabel)) {
+			selectedGroups = new Set([...selectedGroups].filter(g => g !== groupLabel));
 		} else {
-			selectedXGroups = new Set([groupLabel, ...selectedXGroups]);
+			selectedGroups = new Set([groupLabel, ...selectedGroups]);
 		}
-		dispatch('xGroupsChanged', selectedXGroups);
+		dispatch('groupsChanged', selectedGroups);
 	}
 
 	function toggleYGroup(groupLabel: string) {
@@ -62,8 +61,9 @@
 	}
 
 	function deselectAllXGroups() {
-		selectedXGroups = new Set();
-		dispatch('xGroupsChanged', selectedXGroups);
+		// In asymmetric mode, X-axis uses main selectedGroups
+		selectedGroups = new Set();
+		dispatch('groupsChanged', selectedGroups);
 	}
 
 	function deselectAllYGroups() {
@@ -74,7 +74,7 @@
 
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 	<div class="space-y-6">
-		{#if (!asymmetricMode && groups.length === 0) || (asymmetricMode && (xGroups.length === 0 || yGroups.length === 0))}
+		{#if (!asymmetricMode && groups.length === 0) || (asymmetricMode && (groups.length === 0 || yGroups.length === 0))}
 			<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
 				<div class="text-center">
 					<div class="text-3xl mb-2">🏷️</div>
@@ -172,11 +172,11 @@
 						<div>
 							<p class="text-gray-700 dark:text-gray-300 font-semibold">X Axis Groups:</p>
 							<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-								Choose X-axis groups ({selectedXGroups.size} selected)
+								Choose X-axis groups ({selectedGroups.size} selected)
 							</p>
 						</div>
 						<div class="flex items-center space-x-3">
-							{#if selectedXGroups.size > 0}
+							{#if selectedGroups.size > 0}
 								<button
 									class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors duration-200"
 									on:click={deselectAllXGroups}
@@ -187,13 +187,13 @@
 						</div>
 					</div>
 
-					{#if xGroups.length > 0}
+					{#if groups.length > 0}
 						<div class="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4">
 							<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-								{#each xGroups as group}
+								{#each groups as group}
 									<button
 										class="px-3 py-2 text-left rounded border text-sm transition-colors duration-200 cursor-pointer select-none
-											{selectedXGroups.has(group.label)
+											{selectedGroups.has(group.label)
 												? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
 												: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
 										on:click={() => toggleXGroup(group.label)}

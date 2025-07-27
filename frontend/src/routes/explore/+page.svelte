@@ -27,6 +27,10 @@
 	let groups: Array<{label: string, size: number}> = [];
 	let selectedGroups = new Set<string>();
 	let groupsLoading = false;
+	
+	// State tracking for group reconciliation
+	let groupsReconciledForFields = new Set<string>(); // Track which fields the current groups represent
+	let yGroupsReconciledForFields = new Set<string>(); // Track which fields the current Y groups represent
 
 	// Asymmetric mode state (IBD only) - only Y-axis gets separate state
 	// X-axis uses the main selectedFields and selectedGroups
@@ -196,6 +200,9 @@
 			yGroups = data.groups;
 			selectedYGroups = reconciledYSelections.size > 0 ? reconciledYSelections : new Set(data.groups.slice(0, 8).map(g => g.label));
 			
+			// Mark Y groups as reconciled for current field selection
+			yGroupsReconciledForFields = new Set(yFields);
+			
 		} catch (err) {
 			toast.error('Failed to load Y-axis IBD groups');
 			console.error('Error loading Y-axis IBD groups:', err);
@@ -204,16 +211,126 @@
 		}
 	}
 
-	// Smart reconciliation: preserve selections that exist in new groups
+	// Helper function to compare sets for equality
+	function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+		return a.size === b.size && [...a].every(x => b.has(x));
+	}
+
+	// Enhanced group reconciliation: find semantic parent-child relationships
+	// Parse group labels into field-value maps using canonical field order
+	function parseGroupLabel(label: string, currentFields: Set<string>): Record<string, string> {
+		const values = label.split(' | ');
+		const fieldMap: Record<string, string> = {};
+		
+		// Use canonical field order to match values to fields
+		let fieldIndex = 0;
+		for (const field of availableFields) {
+			if (fieldIndex < values.length && currentFields.has(field)) {
+				fieldMap[field] = values[fieldIndex];
+				fieldIndex++;
+			}
+		}
+		return fieldMap;
+	}
+
+	// Check if newGroup is a semantic "child" of oldGroup (contains all old field values)
+	function isChildGroup(oldGroupMap: Record<string, string>, newGroupMap: Record<string, string>): boolean {
+		return Object.entries(oldGroupMap).every(([field, value]) => 
+			newGroupMap[field] === value
+		);
+	}
+
+	// Find child groups for enhanced reconciliation (adding fields)
+	function findChildGroups(oldSelections: string[], newGroups: Array<{label: string, size: number}>, oldFields: Set<string>, newFields: Set<string>): Set<string> {
+		const childSelections = new Set<string>();
+		
+		for (const oldSelection of oldSelections) {
+			const oldGroupMap = parseGroupLabel(oldSelection, oldFields);
+			
+			// Find all new groups that are children of this old selection
+			for (const newGroup of newGroups) {
+				const newGroupMap = parseGroupLabel(newGroup.label, newFields);
+				
+				if (isChildGroup(oldGroupMap, newGroupMap)) {
+					childSelections.add(newGroup.label);
+				}
+			}
+		}
+		
+		return childSelections;
+	}
+
+	// Find parent groups for "round up" reconciliation (removing fields)
+	function findParentGroups(oldSelections: string[], newGroups: Array<{label: string, size: number}>, oldFields: Set<string>, newFields: Set<string>): Set<string> {
+		const parentSelections = new Set<string>();
+		
+		// Group old selections by their potential parent groups
+		const parentGroupMap = new Map<string, string[]>();
+		
+		for (const oldSelection of oldSelections) {
+			const oldGroupMap = parseGroupLabel(oldSelection, oldFields);
+			
+			// Create parent key by only using fields that exist in newFields
+			const parentKey = Object.entries(oldGroupMap)
+				.filter(([field, _]) => newFields.has(field))
+				.sort(([a], [b]) => availableFields.indexOf(a) - availableFields.indexOf(b)) // Use canonical order
+				.map(([_, value]) => value)
+				.join(' | ');
+			
+			if (parentKey) {
+				if (!parentGroupMap.has(parentKey)) {
+					parentGroupMap.set(parentKey, []);
+				}
+				parentGroupMap.get(parentKey)!.push(oldSelection);
+			}
+		}
+		
+		// For each potential parent, check if it exists in newGroups and select it
+		for (const [parentKey, childSelections] of parentGroupMap.entries()) {
+			// Find the actual parent group in newGroups
+			const parentGroup = newGroups.find(group => group.label === parentKey);
+			if (parentGroup) {
+				parentSelections.add(parentGroup.label);
+			}
+		}
+		
+		return parentSelections;
+	}
+
+	// Smart reconciliation: preserve selections using semantic matching
 	// Only show toast when switching tabs, not when modifying fields within same tab
 	let lastActiveTab = activeTab;
+	let lastSelectedFields = new Set(selectedFields); // Track previous field selection
 	async function reconcileGroups(newGroups: Array<{label: string, size: number}>) {
 		const previousSelections = [...selectedGroups];
-		const reconciledSelections = new Set(
+		
+		// Try exact matches first (for tab switches or no field changes)
+		const exactMatches = new Set(
 			previousSelections.filter(selection => 
 				newGroups.some(group => group.label === selection)
 			)
 		);
+
+		// Try semantic matching if exact matches failed and fields changed
+		let reconciledSelections = exactMatches;
+		if (exactMatches.size === 0 && previousSelections.length > 0 && !setsEqual(lastSelectedFields, selectedFields)) {
+			// Determine if fields were added or removed
+			const oldFieldCount = lastSelectedFields.size;
+			const newFieldCount = selectedFields.size;
+			
+			if (newFieldCount > oldFieldCount) {
+				// Fields were added - find child groups (more specific)
+				reconciledSelections = findChildGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+			} else if (newFieldCount < oldFieldCount) {
+				// Fields were removed - find parent groups (less specific, "round up")
+				reconciledSelections = findParentGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+			} else {
+				// Same number of fields but different fields - try both approaches
+				const childMatches = findChildGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+				const parentMatches = findParentGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+				reconciledSelections = childMatches.size > 0 ? childMatches : parentMatches;
+			}
+		}
 		
 		// Check if groups array was empty before this update
 		const wasEmpty = groups.length === 0;
@@ -246,11 +363,13 @@
 		// 2. Some were lost
 		// 3. This is happening due to a tab change (not field modification)
 		const totalLost = previousSelections.length - selectedGroups.size;
-		const unavailableLost = previousSelections.length - reconciledSelections.size;
+		const unavailableLost = previousSelections.length - (exactMatches.size + reconciledSelections.size);
 		const limitLost = reconciledSelections.size - selectedGroups.size;
 		const isTabChange = lastActiveTab !== activeTab;
+		const isFieldChange = !setsEqual(lastSelectedFields, selectedFields);
 		
-		if (totalLost > 0 && previousSelections.length > 0 && isTabChange) {
+		if (totalLost > 0 && previousSelections.length > 0 && isTabChange && !isFieldChange) {
+			// Only show toasts for tab changes, not field changes (which should be seamless)
 			if (unavailableLost > 0 && limitLost > 0) {
 				toast.info(`${unavailableLost} selections not available in ${activeTab.toUpperCase()}, lost ${limitLost} for performance`);
 			} else if (unavailableLost > 0) {
@@ -259,7 +378,13 @@
 				toast.info(`Selections limited to ${MAX_DEFAULT_SELECTED_GROUPS} on switch - lost ${limitLost}`);
 			}
 		}
+		
+		// Update tracking variables
 		lastActiveTab = activeTab;
+		lastSelectedFields = new Set(selectedFields);
+		
+		// Mark groups as reconciled for current field selection
+		groupsReconciledForFields = new Set(selectedFields);
 	}
 
 	// Reactive: Load groups when fields change or tab switches
@@ -267,7 +392,8 @@
 		if (selectedFields.size > 0) {
 			if (activeTab === 'pca') {
 				loadPcaGroups();
-			} else if (activeTab === 'ibd' && !asymmetricMode) {
+			} else if (activeTab === 'ibd') {
+				// Load groups for symmetric mode, or X-axis groups for asymmetric mode
 				loadIbdGroups();
 			}
 		} else {
@@ -278,8 +404,15 @@
 	}
 
 	// Reactive: Load Y-axis groups when asymmetric mode is enabled and yFields change
-	$: if (asymmetricMode && activeTab === 'ibd' && yFields.size > 0) {
-		loadAsymmetricYGroups();
+	$: if (asymmetricMode && activeTab === 'ibd') {
+		if (yFields.size > 0) {
+			loadAsymmetricYGroups();
+		} else {
+			// Clear Y groups when no Y metadata fields are selected
+			yGroups = [];
+			selectedYGroups = new Set();
+			yGroupsReconciledForFields = new Set();
+		}
 	}
 
 	// Reactive: Generate available groups for Query dropdown
@@ -454,6 +587,8 @@
 					loading={groupsLoading}
 					{Plotly}
 					isActive={activeTab === 'ibd'}
+					{groupsReconciledForFields}
+					{yGroupsReconciledForFields}
 				/>
 			</div>
 

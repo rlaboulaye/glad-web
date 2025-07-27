@@ -17,10 +17,23 @@
 	
 	// Parent's yFields for asymmetric mode
 	export let yFields: Set<string> = new Set();
+	
+	// State tracking for group reconciliation
+	export let groupsReconciledForFields: Set<string> = new Set();
+	export let yGroupsReconciledForFields: Set<string> = new Set();
 
-	// IBD grouping fields (asymmetric mode only - symmetric uses shared selectedFields)
-	let ibdXFields = new Set(['ibd_community']); // X-axis fields for asymmetric mode
-	let ibdYFields = new Set(['ibd_community']); // Y-axis fields for asymmetric mode
+	// Helper functions to check if groups are reconciled for current field selection
+	function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+		return a.size === b.size && [...a].every(x => b.has(x));
+	}
+	
+	function groupsAreReconciledForCurrentFields(): boolean {
+		return setsEqual(groupsReconciledForFields, selectedFields);
+	}
+	
+	function yGroupsAreReconciledForCurrentFields(): boolean {
+		return setsEqual(yGroupsReconciledForFields, yFields);
+	}
 	
 	// IBD Heatmap data
 	let heatmapDiv: HTMLDivElement;
@@ -64,62 +77,9 @@
 	}
 
 
-	// Event handlers for MetadataFieldSelector component
-	function handleFieldsChanged(event) {
-		selectedFields = event.detail;
-	}
+	// Remove event handlers - parent manages all state
 
-	function handleXFieldsChanged(event) {
-		ibdXFields = event.detail;
-	}
-
-	function handleYFieldsChanged(event) {
-		ibdYFields = event.detail;
-	}
-
-	function handleAsymmetricModeToggled(event) {
-		asymmetricMode = event.detail;
-		
-		if (asymmetricMode) {
-			// Copy current symmetric fields to both X and Y
-			ibdXFields = new Set(selectedFields);
-			ibdYFields = new Set(selectedFields);
-		} else {
-			// Copy current X axis fields to symmetric mode
-			selectedFields = new Set(ibdXFields);
-			selectedFields = selectedFields; // Trigger reactivity
-		}
-	}
-
-	// Event handlers for GroupSelector component
-	function handleGroupsChanged(event) {
-		selectedGroups = event.detail;
-		updateHeatmap();
-	}
-
-	function handleXGroupsChanged(event) {
-		// X-axis now uses main selectedGroups (managed by parent)
-		selectedGroups = event.detail;
-		updateAsymmetricHeatmap();
-	}
-
-	function handleYGroupsChanged(event) {
-		selectedYGroups = event.detail;
-		updateAsymmetricHeatmap();
-	}
-
-	function handleDeselectAllGroups() {
-		selectedGroups = new Set();
-	}
-
-	function handleDeselectAllXGroups() {
-		// X-axis now uses main selectedGroups (managed by parent)
-		selectedGroups = new Set();
-	}
-
-	function handleDeselectAllYGroups() {
-		selectedYGroups = new Set();
-	}
+	// Remove group event handlers - parent manages all state
 
 	// IBD Heatmap functions
 
@@ -178,6 +138,7 @@
 			const xGrouping = xOrderedFields.join(',');
 			const yGrouping = yOrderedFields.join(',');
 			
+			
 			const res = await fetch('/api/ibd-matrix-asymmetric', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -190,7 +151,9 @@
 			});
 
 			if (!res.ok) {
-				throw new Error('Failed to compute asymmetric IBD matrix');
+				const errorText = await res.text();
+				console.error('Asymmetric IBD matrix API error:', res.status, errorText);
+				throw new Error(`Failed to compute asymmetric IBD matrix: ${res.status} ${errorText}`);
 			}
 
 			heatmapData = await res.json();
@@ -327,7 +290,7 @@
 			
 			// Create a map to get group sizes for filtering and sorting
 			const groupSizeMap = new Map();
-			xGroups.forEach(g => groupSizeMap.set(g.label, g.size));
+			groups.forEach(g => groupSizeMap.set(g.label, g.size)); // X-axis uses main groups
 			yGroups.forEach(g => groupSizeMap.set(g.label, g.size));
 			
 			return groupsArray
@@ -366,15 +329,16 @@
 		}
 	}
 
-	// Update symmetric heatmap when selection or log scale changes (groups managed by parent)
-	// Safety check: ensure groups are loaded and not stale from tab switching
-	$: if (isActive && !asymmetricMode && selectedGroups.size > 0 && Plotly && heatmapDiv && groups.length > 0 && !loading) {
+	// Update symmetric heatmap when selection changes (groups managed by parent)
+	// Only update when groups are reconciled for current field selection
+	$: if (isActive && !asymmetricMode && selectedGroups.size > 0 && Plotly && heatmapDiv && groups.length > 0 && !loading && groupsAreReconciledForCurrentFields()) {
 		setTimeout(() => updateHeatmap(), 100);
 	}
 
-	// Update asymmetric heatmap when selection changes (groups managed by parent)
-	// Safety check: ensure groups are loaded and not stale from tab switching
-	$: if (isActive && asymmetricMode && selectedGroups.size > 0 && selectedYGroups.size > 0 && Plotly && heatmapDiv && groups.length > 0 && yGroups.length > 0 && !loading) {
+
+	// Update asymmetric heatmap when selection or fields change (groups managed by parent)
+	// Only update when BOTH X and Y groups are reconciled for their respective field selections
+	$: if (isActive && asymmetricMode && selectedGroups.size > 0 && selectedYGroups.size > 0 && Plotly && heatmapDiv && groups.length > 0 && yGroups.length > 0 && !loading && groupsAreReconciledForCurrentFields() && yGroupsAreReconciledForCurrentFields()) {
 		setTimeout(() => updateAsymmetricHeatmap(), 100);
 	}
 	
@@ -384,9 +348,15 @@
 	}
 
 	// Clear heatmap when no metadata fields are selected
-	$: if (isActive && selectedFields.size === 0 && Plotly && heatmapDiv) {
-		Plotly.purge(heatmapDiv);
-		heatmapData = null;
+	$: if (isActive && Plotly && heatmapDiv) {
+		const shouldClear = !asymmetricMode ? 
+			selectedFields.size === 0 : // Symmetric: clear when no X fields
+			selectedFields.size === 0 || yFields.size === 0; // Asymmetric: clear when no X or Y fields
+		
+		if (shouldClear) {
+			Plotly.purge(heatmapDiv);
+			heatmapData = null;
+		}
 	}
 </script>
 
