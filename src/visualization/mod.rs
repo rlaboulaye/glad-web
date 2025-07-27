@@ -17,7 +17,7 @@ use crate::api::ApiError;
 // File paths
 const PCA_DATA_PATH: &str = "data/visualization_data/pca_merged.json";
 const IBD_COMMUNITIES_PATH: &str = "data/visualization_data/info_all_membership_df.tsv";
-const IBD_MATRIX_PATH: &str = "data/visualization_data/clust_all_mat.mtx";
+const IBD_MATRIX_PATH: &str = "data/visualization_data/ibd.all.mtx";
 
 /// Canonical order for grouping fields (ensures consistent cache keys)
 /// Matches frontend field order for consistency
@@ -672,4 +672,3 @@ impl VisualizationCache {
         }))
     }
 }
-
