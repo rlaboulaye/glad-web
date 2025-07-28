@@ -14,6 +14,8 @@
 	export let crossGroupingMode: boolean = false;
 	export let secondaryGroups: Array<{label: string, size: number}> = [];
 	export let selectedSecondaryGroups: Set<string> = new Set();
+	export let primaryFieldsLabel: string = "Primary Axis";
+	export let secondaryFieldsLabel: string = "Secondary Axis";
 	
 	// PCA-specific features
 	export let showColorDots: boolean = false;
@@ -75,12 +77,12 @@
 		{:else}
 			<!-- Cross-grouping mode group selection -->
 			<div class="space-y-6">
-				<!-- X Axis Groups -->
+				<!-- Primary Groups -->
 				<GroupSelectorList 
 					{groups}
 					bind:selectedGroups
-					title="X Axis Groups:"
-					description="Choose X-axis groups"
+					title="{primaryFieldsLabel} Groups:"
+					description="Choose {primaryFieldsLabel.toLowerCase()} groups"
 					{loading}
 					showColorDots={false}
 					colorClass="indigo"
@@ -88,12 +90,12 @@
 					on:groupsChanged={handlePrimaryGroupsChanged}
 				/>
 
-				<!-- Y Axis Groups -->
+				<!-- Secondary Groups -->
 				<GroupSelectorList 
 					groups={secondaryGroups}
 					bind:selectedGroups={selectedSecondaryGroups}
-					title="Y Axis Groups:"
-					description="Choose Y-axis groups"
+					title="{secondaryFieldsLabel} Groups:"
+					description="Choose {secondaryFieldsLabel.toLowerCase()} groups"
 					{loading}
 					showColorDots={false}
 					colorClass="green"

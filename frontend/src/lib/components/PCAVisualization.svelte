@@ -264,6 +264,9 @@
 		// Use parent-provided groups instead of regenerating from data
 		const allSelectedGroups = new Map<string, any[]>();
 		
+		// Build data point to group membership mapping for enhanced hover text
+		const pointGroupMembership = new Map<any, {primary: string | null, secondary: string | null}>();
+		
 		// Generate primary group data
 		const primaryGrouped = new Map<string, any[]>();
 		for (const d of data) {
@@ -272,6 +275,14 @@
 				: 'All';
 			if (!primaryGrouped.has(key)) primaryGrouped.set(key, []);
 			primaryGrouped.get(key)!.push(d);
+			
+			// Track primary group membership for each data point
+			if (!pointGroupMembership.has(d)) {
+				pointGroupMembership.set(d, {primary: null, secondary: null});
+			}
+			if (selectedGroups.has(key)) {
+				pointGroupMembership.get(d)!.primary = key;
+			}
 		}
 		
 		// Add selected primary groups
@@ -300,6 +311,12 @@
 								: 'All';
 							if (key === secondaryGroup.label) {
 								groupData.push(d);
+								
+								// Track secondary group membership for each data point
+								if (!pointGroupMembership.has(d)) {
+									pointGroupMembership.set(d, {primary: null, secondary: null});
+								}
+								pointGroupMembership.get(d)!.secondary = key;
 							}
 						}
 					}
@@ -313,10 +330,22 @@
 			(a, b) => b[1].length - a[1].length
 		);
 
+		// Helper function to create enhanced hover text
+		function createHoverText(dataPoint: any, currentGroupKey: string): string {
+			const membership = pointGroupMembership.get(dataPoint);
+			if (!membership) return currentGroupKey;
+			
+			const parts = [];
+			if (membership.primary) parts.push(`${membership.primary}`);
+			if (membership.secondary) parts.push(`${membership.secondary}`);
+			
+			return parts.length > 1 ? parts.join('<br>') : currentGroupKey;
+		}
+
 		const traces = sortedEntries.map(([key, group]) => ({
 			x: group.map(d => d.pc[pcX]),
 			y: group.map(d => d.pc[pcY]),
-			text: group.map(d => key),
+			text: group.map(d => createHoverText(d, key)),
 			mode: 'markers',
 			type: 'scattergl',
 			name: `(${group.length}) ${key}`,

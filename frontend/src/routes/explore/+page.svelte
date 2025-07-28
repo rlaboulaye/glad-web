@@ -573,6 +573,8 @@
 				bind:crossGroupingMode
 				proposeCrossGrouping={true}
 				title="Group by Metadata:"
+				primaryFieldsLabel={activeTab === 'ibd' ? 'X Axis' : 'First Set'}
+				secondaryFieldsLabel={activeTab === 'ibd' ? 'Y Axis' : 'Second Set'}
 				on:fieldsChanged={handleFieldsChanged}
 				on:secondaryFieldsChanged={handleSecondaryFieldsChanged}
 				on:crossGroupingModeToggled={handleCrossGroupingModeToggled}
@@ -590,6 +592,8 @@
 				{crossGroupingMode}
 				{secondaryGroups}
 				bind:selectedSecondaryGroups
+				primaryFieldsLabel={activeTab === 'ibd' ? 'X Axis' : 'First Set'}
+				secondaryFieldsLabel={activeTab === 'ibd' ? 'Y Axis' : 'Second Set'}
 				on:groupsChanged={handleGroupsChanged}
 				on:secondaryGroupsChanged={handleSecondaryGroupsChanged}
 				on:selectAll={handleSelectAll}

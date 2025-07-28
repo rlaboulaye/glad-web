@@ -9,6 +9,8 @@
 	export let crossGroupingMode: boolean = false;
 	export let proposeCrossGrouping: boolean = false;
 	export let title: string = "Group by Metadata:";
+	export let primaryFieldsLabel: string = "Primary Axis";
+	export let secondaryFieldsLabel: string = "Secondary Axis";
 
 	const dispatch = createEventDispatcher();
 
@@ -61,20 +63,20 @@
 		{:else}
 			<!-- Cross-grouping mode primary/secondary axis selectors -->
 			<div class="space-y-4">
-				<!-- Primary Axis -->
+				<!-- Primary -->
 				<MetadataFieldSelectorList 
 					{availableFields}
 					bind:selectedFields
-					title="Primary Axis:"
+					title="{primaryFieldsLabel}"
 					colorClass="indigo"
 					on:fieldsChanged={handlePrimaryFieldsChanged}
 				/>
 				
-				<!-- Secondary Axis -->
+				<!-- Secondary -->
 				<MetadataFieldSelectorList 
 					{availableFields}
 					bind:selectedFields={secondaryFields}
-					title="Secondary Axis:"
+					title="{secondaryFieldsLabel}"
 					colorClass="green"
 					on:fieldsChanged={handleSecondaryFieldsChanged}
 				/>
