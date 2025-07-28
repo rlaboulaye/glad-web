@@ -86,7 +86,7 @@
 					{loading}
 					showColorDots={false}
 					colorClass="indigo"
-					showSelectAll={false}
+					showSelectAll={enableSelectAll}
 					on:groupsChanged={handlePrimaryGroupsChanged}
 				/>
 
@@ -99,7 +99,7 @@
 					{loading}
 					showColorDots={false}
 					colorClass="green"
-					showSelectAll={false}
+					showSelectAll={enableSelectAll}
 					on:groupsChanged={handleSecondaryGroupsChanged}
 				/>
 			</div>
