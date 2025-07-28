@@ -21,7 +21,7 @@
 	// Metadata fields for selection
 	let availableFields = ['phs', 'country', 'region', 'sex', 'ethnicity', 'self_described', 'ibd_community'];
 	let selectedFields = new Set(['ethnicity']);
-	let asymmetricMode = false;
+	let crossGroupingMode = false;
 
 	// Shared state for groups (with reconciliation)
 	let groups: Array<{label: string, size: number}> = [];
@@ -30,13 +30,13 @@
 	
 	// State tracking for group reconciliation
 	let groupsReconciledForFields = new Set<string>(); // Track which fields the current groups represent
-	let yGroupsReconciledForFields = new Set<string>(); // Track which fields the current Y groups represent
+	let secondaryGroupsReconciledForFields = new Set<string>(); // Track which fields the current secondary groups represent
 
-	// Asymmetric mode state (IBD only) - only Y-axis gets separate state
-	// X-axis uses the main selectedFields and selectedGroups
-	let yFields = new Set<string>(); 
-	let yGroups: Array<{label: string, size: number}> = [];
-	let selectedYGroups = new Set<string>();
+	// Cross-Grouping mode state (IBD only) - only secondary axis gets separate state
+	// Primary axis uses the main selectedFields and selectedGroups
+	let secondaryFields = new Set<string>(); 
+	let secondaryGroups: Array<{label: string, size: number}> = [];
+	let selectedSecondaryGroups = new Set<string>();
 
 	// Submit Query section state
 	let selectedQueryGroup = '';
@@ -61,20 +61,20 @@
 		}
 	}
 
-	function handleYFieldsChanged(event) {
-		yFields = event.detail;
+	function handleSecondaryFieldsChanged(event) {
+		secondaryFields = event.detail;
 	}
 
-	function handleAsymmetricModeToggled(event) {
-		asymmetricMode = event.detail;
+	function handleCrossGroupingModeToggled(event) {
+		crossGroupingMode = event.detail;
 		
-		if (asymmetricMode) {
-			// Copy current symmetric fields to Y fields initially
-			yFields = new Set(selectedFields);
+		if (crossGroupingMode) {
+			// Copy current primary fields to secondary fields initially
+			secondaryFields = new Set(selectedFields);
 		} else {
-			// Clear Y fields when returning to symmetric mode
-			yFields = new Set();
-			selectedYGroups = new Set();
+			// Clear secondary fields when returning to primary mode
+			secondaryFields = new Set();
+			selectedSecondaryGroups = new Set();
 		}
 	}
 
@@ -82,8 +82,8 @@
 		selectedGroups = event.detail;
 	}
 
-	function handleYGroupsChanged(event) {
-		selectedYGroups = event.detail;
+	function handleSecondaryGroupsChanged(event) {
+		selectedSecondaryGroups = event.detail;
 	}
 
 	function handleSelectAll() {
@@ -175,37 +175,37 @@
 		}
 	}
 
-	async function loadAsymmetricYGroups() {
-		if (!asymmetricMode || yFields.size === 0) return;
+	async function loadSecondaryGroups() {
+		if (!crossGroupingMode || secondaryFields.size === 0) return;
 		
 		groupsLoading = true;
 		try {
-			// Load Y-axis groups based on yFields
-			const orderedYFields = availableFields.filter(f => yFields.has(f));
-			const yGrouping = orderedYFields.join(',');
+			// Load secondary-axis groups based on secondaryFields
+			const orderedSecondaryFields = availableFields.filter(f => secondaryFields.has(f));
+			const secondaryGrouping = orderedSecondaryFields.join(',');
 			
-			const res = await fetch(`/api/ibd-groups?grouping=${encodeURIComponent(yGrouping)}&min_size=30`);
+			const res = await fetch(`/api/ibd-groups?grouping=${encodeURIComponent(secondaryGrouping)}&min_size=30`);
 			if (!res.ok) {
-				throw new Error('Failed to load Y-axis IBD groups');
+				throw new Error('Failed to load secondary-axis IBD groups');
 			}
 			const data = await res.json();
 			
-			// Reconcile Y selections
-			const reconciledYSelections = new Set(
-				[...selectedYGroups].filter(selection => 
+			// Reconcile secondary selections
+			const reconciledSecondarySelections = new Set(
+				[...selectedSecondaryGroups].filter(selection => 
 					data.groups.some(group => group.label === selection)
 				)
 			);
 			
-			yGroups = data.groups;
-			selectedYGroups = reconciledYSelections.size > 0 ? reconciledYSelections : new Set(data.groups.slice(0, 8).map(g => g.label));
+			secondaryGroups = data.groups;
+			selectedSecondaryGroups = reconciledSecondarySelections.size > 0 ? reconciledSecondarySelections : new Set(data.groups.slice(0, 8).map(g => g.label));
 			
-			// Mark Y groups as reconciled for current field selection
-			yGroupsReconciledForFields = new Set(yFields);
+			// Mark secondary groups as reconciled for current field selection
+			secondaryGroupsReconciledForFields = new Set(secondaryFields);
 			
 		} catch (err) {
-			toast.error('Failed to load Y-axis IBD groups');
-			console.error('Error loading Y-axis IBD groups:', err);
+			toast.error('Failed to load secondary-axis IBD groups');
+			console.error('Error loading secondary-axis IBD groups:', err);
 		} finally {
 			groupsLoading = false;
 		}
@@ -403,15 +403,15 @@
 		}
 	}
 
-	// Reactive: Load Y-axis groups when asymmetric mode is enabled and yFields change
-	$: if (asymmetricMode && activeTab === 'ibd') {
-		if (yFields.size > 0) {
-			loadAsymmetricYGroups();
+	// Reactive: Load secondary-axis groups when cross-grouping mode is enabled and secondaryFields change
+	$: if (crossGroupingMode && activeTab === 'ibd') {
+		if (secondaryFields.size > 0) {
+			loadSecondaryGroups();
 		} else {
-			// Clear Y groups when no Y metadata fields are selected
-			yGroups = [];
-			selectedYGroups = new Set();
-			yGroupsReconciledForFields = new Set();
+			// Clear secondary groups when no secondary metadata fields are selected
+			secondaryGroups = [];
+			selectedSecondaryGroups = new Set();
+			secondaryGroupsReconciledForFields = new Set();
 		}
 	}
 
@@ -421,14 +421,14 @@
 		
 		// Filter groups by minimum size and format for display
 		const MIN_QUERY_GROUP_SIZE = 30;
-		const eligibleGroups = asymmetricMode ? 
-			// For asymmetric mode, combine X (main) and Y groups
-			[...new Set([...selectedGroups, ...selectedYGroups])]
+		const eligibleGroups = crossGroupingMode ? 
+			// For cross-grouping mode, combine primary (main) and secondary groups
+			[...new Set([...selectedGroups, ...selectedSecondaryGroups])]
 				.map(label => {
-					// Find group size from main groups or yGroups
+					// Find group size from main groups or secondaryGroups
 					const mainGroup = groups.find(g => g.label === label);
-					const yGroup = yGroups.find(g => g.label === label);
-					const size = mainGroup?.size || yGroup?.size || 0;
+					const secondaryGroup = secondaryGroups.find(g => g.label === label);
+					const size = mainGroup?.size || secondaryGroup?.size || 0;
 					return { label, size };
 				})
 				.filter(group => group.size >= MIN_QUERY_GROUP_SIZE)
@@ -531,13 +531,13 @@
 			<MetadataFieldSelector 
 				{availableFields}
 				bind:selectedFields
-				bind:yFields
-				bind:asymmetricMode
-				proposeAsymmetric={activeTab === 'ibd'}
+				bind:secondaryFields
+				bind:crossGroupingMode
+				proposeCrossGrouping={activeTab === 'ibd'}
 				title="Group by Metadata:"
 				on:fieldsChanged={handleFieldsChanged}
-				on:yFieldsChanged={handleYFieldsChanged}
-				on:asymmetricModeToggled={handleAsymmetricModeToggled}
+				on:secondaryFieldsChanged={handleSecondaryFieldsChanged}
+				on:crossGroupingModeToggled={handleCrossGroupingModeToggled}
 			/>
 
 			<!-- Persistent GroupSelector -->
@@ -549,11 +549,11 @@
 				enableSelectAll={activeTab === 'pca'}
 				showColorDots={activeTab === 'pca'}
 				getGroupColor={activeTab === 'pca' ? getGroupColor : null}
-				{asymmetricMode}
-				{yGroups}
-				bind:selectedYGroups
+				{crossGroupingMode}
+				{secondaryGroups}
+				bind:selectedSecondaryGroups
 				on:groupsChanged={handleGroupsChanged}
-				on:yGroupsChanged={handleYGroupsChanged}
+				on:secondaryGroupsChanged={handleSecondaryGroupsChanged}
 				on:selectAll={handleSelectAll}
 				on:deselectAll={handleDeselectAll}
 			/>
@@ -578,17 +578,17 @@
 					bind:this={ibdComponent}
 					{availableFields}
 					bind:selectedFields
-					bind:asymmetricMode
+					bind:crossGroupingMode
 					bind:groups
 					bind:selectedGroups
-					bind:yFields
-					bind:yGroups
-					bind:selectedYGroups
+					bind:secondaryFields
+					bind:secondaryGroups
+					bind:selectedSecondaryGroups
 					loading={groupsLoading}
 					{Plotly}
 					isActive={activeTab === 'ibd'}
 					{groupsReconciledForFields}
-					{yGroupsReconciledForFields}
+					{secondaryGroupsReconciledForFields}
 				/>
 			</div>
 

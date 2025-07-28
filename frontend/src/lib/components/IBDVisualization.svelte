@@ -6,21 +6,21 @@
 	// Props
 	export let availableFields: string[];
 	export let selectedFields: Set<string>; // Shared field selections like PCA (used for X-axis in asymmetric)
-	export let asymmetricMode: boolean = false;
+	export let crossGroupingMode: boolean = false;
 	export let groups: Array<{label: string, size: number}> = [];
 	export let selectedGroups: Set<string> = new Set(); // Used for X-axis in asymmetric
-	export let yGroups: Array<{label: string, size: number}> = [];
-	export let selectedYGroups: Set<string> = new Set();
+	export let secondaryGroups: Array<{label: string, size: number}> = [];
+	export let selectedSecondaryGroups: Set<string> = new Set();
 	export let loading: boolean = false;
 	export let Plotly: any = null;
 	export let isActive: boolean = false;
 	
-	// Parent's yFields for asymmetric mode
-	export let yFields: Set<string> = new Set();
+	// Parent's secondaryFields for cross-grouping mode
+	export let secondaryFields: Set<string> = new Set();
 	
 	// State tracking for group reconciliation
 	export let groupsReconciledForFields: Set<string> = new Set();
-	export let yGroupsReconciledForFields: Set<string> = new Set();
+	export let secondaryGroupsReconciledForFields: Set<string> = new Set();
 
 	// Helper functions to check if groups are reconciled for current field selection
 	function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
@@ -31,8 +31,8 @@
 		return setsEqual(groupsReconciledForFields, selectedFields);
 	}
 	
-	function yGroupsAreReconciledForCurrentFields(): boolean {
-		return setsEqual(yGroupsReconciledForFields, yFields);
+	function secondaryGroupsAreReconciledForCurrentFields(): boolean {
+		return setsEqual(secondaryGroupsReconciledForFields, secondaryFields);
 	}
 	
 	// IBD Heatmap data
@@ -118,23 +118,23 @@
 		}
 	}
 
-	async function updateAsymmetricHeatmap() {
-		// X-axis uses main selectedGroups and selectedFields, Y-axis uses selectedYGroups and yFields from parent
-		if (!selectedGroups.size || !selectedYGroups.size || !Plotly || !heatmapDiv || 
+	async function updateCrossGroupingHeatmap() {
+		// X-axis uses main selectedGroups and selectedFields, Y-axis uses selectedSecondaryGroups and secondaryFields from parent
+		if (!selectedGroups.size || !selectedSecondaryGroups.size || !Plotly || !heatmapDiv || 
 			selectedFields.size === 0) return;
 
-		// Get yFields from parent component (passed as prop)
-		const parentYFields = yGroups && yGroups.length > 0 ? 
-			availableFields.filter(f => yFields && yFields.has && yFields.has(f)) : 
+		// Get secondaryFields from parent component (passed as prop)
+		const parentSecondaryFields = secondaryGroups && secondaryGroups.length > 0 ? 
+			availableFields.filter(f => secondaryFields && secondaryFields.has && secondaryFields.has(f)) : 
 			availableFields.filter(f => selectedFields.has(f)); // fallback to main fields
 
-		if (parentYFields.length === 0) return;
+		if (parentSecondaryFields.length === 0) return;
 
 		plotRendering = true;
 		try {
 			// Generate grouping parameters from selected fields
 			const xOrderedFields = availableFields.filter(f => selectedFields.has(f)); // X-axis uses main fields
-			const yOrderedFields = parentYFields; // Y-axis uses yFields from parent
+			const yOrderedFields = parentSecondaryFields; // Y-axis uses secondaryFields from parent
 			const xGrouping = xOrderedFields.join(',');
 			const yGrouping = yOrderedFields.join(',');
 			
@@ -145,15 +145,13 @@
 				body: JSON.stringify({
 					row_grouping: yGrouping,      // Y Axis → rows  
 					column_grouping: xGrouping,   // X Axis → columns
-					selected_row_groups: [...selectedYGroups],    // Y Axis → rows
+					selected_row_groups: [...selectedSecondaryGroups],    // Y Axis → rows
 					selected_column_groups: [...selectedGroups] // X Axis → columns (main groups)
 				})
 			});
 
 			if (!res.ok) {
-				const errorText = await res.text();
-				console.error('Asymmetric IBD matrix API error:', res.status, errorText);
-				throw new Error(`Failed to compute asymmetric IBD matrix: ${res.status} ${errorText}`);
+				throw new Error(`Failed to compute asymmetric IBD matrix: ${res.status} ${await res.text()}`);
 			}
 
 			heatmapData = await res.json();
@@ -161,7 +159,6 @@
 
 		} catch (err) {
 			toast.error('Failed to compute asymmetric IBD matrix');
-			console.error('Error computing asymmetric IBD matrix:', err);
 		} finally {
 			plotRendering = false;
 		}
@@ -172,14 +169,14 @@
 
 		plotRendering = true;
 
-		// Handle both symmetric and asymmetric data
-		const isAsymmetric = heatmapData.row_group_labels && heatmapData.row_group_sizes;
+		// Handle both basic and cross-grouping data
+		const isCrossGrouping = heatmapData.row_group_labels && heatmapData.row_group_sizes;
 		const { matrix } = heatmapData;
 		
 		let xLabels, yLabels, processedMatrix, matrixTitle;
 		
-		if (isAsymmetric) {
-			// Asymmetric mode: columns are X axis, rows are Y axis
+		if (isCrossGrouping) {
+			// Cross-grouping mode: columns are X axis, rows are Y axis
 			const { row_group_labels, row_group_sizes, group_labels: column_group_labels, group_sizes: column_group_sizes } = heatmapData;
 			
 			// Create labels with sizes
@@ -239,13 +236,13 @@
 			},
 			autosize: true,
 			xaxis: {
-				title: isAsymmetric ? `X Axis Groups (${heatmapData.column_grouping})` : 'IBD Community (Size)',
+				title: isCrossGrouping ? `X Axis Groups (${heatmapData.column_grouping})` : 'IBD Community (Size)',
 				side: 'bottom',
 				tickangle: -45,
 				automargin: true
 			},
 			yaxis: {
-				title: isAsymmetric ? `Y Axis Groups (${heatmapData.row_grouping})` : 'IBD Community (Size)',
+				title: isCrossGrouping ? `Y Axis Groups (${heatmapData.row_grouping})` : 'IBD Community (Size)',
 				side: 'left',
 				automargin: true
 			},
@@ -275,7 +272,7 @@
 	export let queryGroupsUpdateTrigger = 0;
 	
 	// Trigger parent update when IBD groups selection changes
-	$: if (selectedGroups || selectedYGroups || asymmetricMode) {
+	$: if (selectedGroups || selectedSecondaryGroups || crossGroupingMode) {
 		queryGroupsUpdateTrigger = Date.now();
 	}
 
@@ -283,15 +280,15 @@
 	export function getAvailableQueryGroups() {
 		const MIN_QUERY_GROUP_SIZE = 30;
 		
-		if (asymmetricMode) {
+		if (crossGroupingMode) {
 			// Combine X and Y groups, remove duplicates, filter by size, sort by size
-			const allGroups = new Set([...selectedGroups, ...selectedYGroups]);
+			const allGroups = new Set([...selectedGroups, ...selectedSecondaryGroups]);
 			const groupsArray = Array.from(allGroups);
 			
 			// Create a map to get group sizes for filtering and sorting
 			const groupSizeMap = new Map();
 			groups.forEach(g => groupSizeMap.set(g.label, g.size)); // X-axis uses main groups
-			yGroups.forEach(g => groupSizeMap.set(g.label, g.size));
+			secondaryGroups.forEach(g => groupSizeMap.set(g.label, g.size));
 			
 			return groupsArray
 				.filter(groupLabel => {
@@ -331,15 +328,15 @@
 
 	// Update symmetric heatmap when selection changes (groups managed by parent)
 	// Only update when groups are reconciled for current field selection
-	$: if (isActive && !asymmetricMode && selectedGroups.size > 0 && Plotly && heatmapDiv && groups.length > 0 && !loading && groupsAreReconciledForCurrentFields()) {
+	$: if (isActive && !crossGroupingMode && selectedGroups.size > 0 && Plotly && heatmapDiv && groups.length > 0 && !loading && groupsAreReconciledForCurrentFields()) {
 		setTimeout(() => updateHeatmap(), 100);
 	}
 
 
-	// Update asymmetric heatmap when selection or fields change (groups managed by parent)
+	// Update cross-grouping heatmap when selection or fields change (groups managed by parent)
 	// Only update when BOTH X and Y groups are reconciled for their respective field selections
-	$: if (isActive && asymmetricMode && selectedGroups.size > 0 && selectedYGroups.size > 0 && Plotly && heatmapDiv && groups.length > 0 && yGroups.length > 0 && !loading && groupsAreReconciledForCurrentFields() && yGroupsAreReconciledForCurrentFields()) {
-		setTimeout(() => updateAsymmetricHeatmap(), 100);
+	$: if (isActive && crossGroupingMode && selectedGroups.size > 0 && selectedSecondaryGroups.size > 0 && Plotly && heatmapDiv && groups.length > 0 && secondaryGroups.length > 0 && !loading && groupsAreReconciledForCurrentFields() && secondaryGroupsAreReconciledForCurrentFields()) {
+		setTimeout(() => updateCrossGroupingHeatmap(), 100);
 	}
 	
 	// Re-render heatmap when scale settings change
@@ -349,9 +346,9 @@
 
 	// Clear heatmap when no metadata fields are selected
 	$: if (isActive && Plotly && heatmapDiv) {
-		const shouldClear = !asymmetricMode ? 
+		const shouldClear = !crossGroupingMode ? 
 			selectedFields.size === 0 : // Symmetric: clear when no X fields
-			selectedFields.size === 0 || yFields.size === 0; // Asymmetric: clear when no X or Y fields
+			selectedFields.size === 0 || secondaryFields.size === 0; // Cross-grouping: clear when no X or Y fields
 		
 		if (shouldClear) {
 			Plotly.purge(heatmapDiv);
@@ -410,7 +407,7 @@
 <!-- IBD Heatmap container -->
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 	<!-- Visualization Scale Controls -->
-	{#if ((!asymmetricMode && selectedGroups.size > 0) || (asymmetricMode && selectedGroups.size > 0 && selectedYGroups.size > 0))}
+	{#if ((!crossGroupingMode && selectedGroups.size > 0) || (crossGroupingMode && selectedGroups.size > 0 && selectedSecondaryGroups.size > 0))}
 		<div class="mb-6 pb-4 border-b border-gray-200 dark:border-gray-600">
 			<p class="text-gray-700 dark:text-gray-300 font-medium mb-4">Visualization Scale</p>
 			
@@ -454,13 +451,13 @@
 		</div>
 	{/if}
 
-	{#if (!asymmetricMode && selectedGroups.size === 0) || (asymmetricMode && (selectedGroups.size === 0 || selectedYGroups.size === 0))}
+	{#if (!crossGroupingMode && selectedGroups.size === 0) || (crossGroupingMode && (selectedGroups.size === 0 || selectedSecondaryGroups.size === 0))}
 		<div class="w-full h-[600px] md:h-[700px] lg:h-[750px] flex items-center justify-center">
 			<div class="text-center">
 				<div class="text-4xl mb-4">📊</div>
 				<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Groups</h3>
 				<p class="text-gray-600 dark:text-gray-400">
-					{asymmetricMode ? 'Choose X and Y axis groups above to generate the heatmap' : 'Choose groups above to generate the heatmap'}
+					{crossGroupingMode ? 'Choose X and Y axis groups above to generate the heatmap' : 'Choose groups above to generate the heatmap'}
 				</p>
 			</div>
 		</div>

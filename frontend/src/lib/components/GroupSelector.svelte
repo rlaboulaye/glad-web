@@ -9,10 +9,10 @@
 	export let description: string = "Choose groups to display";
 	export let enableSelectAll: boolean = false;
 	
-	// Asymmetric mode support
-	export let asymmetricMode: boolean = false;
-	export let yGroups: Array<{label: string, size: number}> = [];
-	export let selectedYGroups: Set<string> = new Set();
+	// Cross-grouping mode support
+	export let crossGroupingMode: boolean = false;
+	export let secondaryGroups: Array<{label: string, size: number}> = [];
+	export let selectedSecondaryGroups: Set<string> = new Set();
 	
 	// PCA-specific features
 	export let showColorDots: boolean = false;
@@ -29,8 +29,8 @@
 		dispatch('groupsChanged', selectedGroups);
 	}
 
-	function toggleXGroup(groupLabel: string) {
-		// In asymmetric mode, X-axis uses main selectedGroups
+	function togglePrimaryGroup(groupLabel: string) {
+		// In cross-grouping mode, primary axis uses main selectedGroups
 		if (selectedGroups.has(groupLabel)) {
 			selectedGroups = new Set([...selectedGroups].filter(g => g !== groupLabel));
 		} else {
@@ -39,13 +39,13 @@
 		dispatch('groupsChanged', selectedGroups);
 	}
 
-	function toggleYGroup(groupLabel: string) {
-		if (selectedYGroups.has(groupLabel)) {
-			selectedYGroups = new Set([...selectedYGroups].filter(g => g !== groupLabel));
+	function toggleSecondaryGroup(groupLabel: string) {
+		if (selectedSecondaryGroups.has(groupLabel)) {
+			selectedSecondaryGroups = new Set([...selectedSecondaryGroups].filter(g => g !== groupLabel));
 		} else {
-			selectedYGroups = new Set([groupLabel, ...selectedYGroups]);
+			selectedSecondaryGroups = new Set([groupLabel, ...selectedSecondaryGroups]);
 		}
-		dispatch('yGroupsChanged', selectedYGroups);
+		dispatch('secondaryGroupsChanged', selectedSecondaryGroups);
 	}
 
 	function selectAllGroups() {
@@ -66,15 +66,34 @@
 		dispatch('groupsChanged', selectedGroups);
 	}
 
+	function toggleXGroup(groupLabel: string) {
+		// In cross-grouping mode, X-axis uses main selectedGroups
+		if (selectedGroups.has(groupLabel)) {
+			selectedGroups = new Set([...selectedGroups].filter(g => g !== groupLabel));
+		} else {
+			selectedGroups = new Set([groupLabel, ...selectedGroups]);
+		}
+		dispatch('groupsChanged', selectedGroups);
+	}
+
+	function toggleYGroup(groupLabel: string) {
+		if (selectedSecondaryGroups.has(groupLabel)) {
+			selectedSecondaryGroups = new Set([...selectedSecondaryGroups].filter(g => g !== groupLabel));
+		} else {
+			selectedSecondaryGroups = new Set([groupLabel, ...selectedSecondaryGroups]);
+		}
+		dispatch('secondaryGroupsChanged', selectedSecondaryGroups);
+	}
+
 	function deselectAllYGroups() {
-		selectedYGroups = new Set();
-		dispatch('yGroupsChanged', selectedYGroups);
+		selectedSecondaryGroups = new Set();
+		dispatch('secondaryGroupsChanged', selectedSecondaryGroups);
 	}
 </script>
 
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
 	<div class="space-y-6">
-		{#if (!asymmetricMode && groups.length === 0) || (asymmetricMode && (groups.length === 0 || yGroups.length === 0))}
+		{#if (!crossGroupingMode && groups.length === 0) || (crossGroupingMode && (groups.length === 0 || secondaryGroups.length === 0))}
 			<div class="flex items-center justify-center h-32 border border-gray-200 dark:border-gray-600 rounded-lg">
 				<div class="text-center">
 					<div class="text-3xl mb-2">🏷️</div>
@@ -84,7 +103,7 @@
 					</p>
 				</div>
 			</div>
-		{:else if !asymmetricMode}
+		{:else if !crossGroupingMode}
 			<!-- Symmetric mode group selection -->
 			<div>
 				<div class="flex items-center justify-between mb-4">
@@ -164,7 +183,7 @@
 				{/if}
 			</div>
 		{:else}
-			<!-- Asymmetric mode group selection -->
+			<!-- Cross-grouping mode group selection -->
 			<div class="space-y-6">
 				<!-- X Axis Groups -->
 				<div>
@@ -224,11 +243,11 @@
 						<div>
 							<p class="text-gray-700 dark:text-gray-300 font-semibold">Y Axis Groups:</p>
 							<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-								Choose Y-axis groups ({selectedYGroups.size} selected)
+								Choose Y-axis groups ({selectedSecondaryGroups.size} selected)
 							</p>
 						</div>
 						<div class="flex items-center space-x-3">
-							{#if selectedYGroups.size > 0}
+							{#if selectedSecondaryGroups.size > 0}
 								<button
 									class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors duration-200"
 									on:click={deselectAllYGroups}
@@ -239,13 +258,13 @@
 						</div>
 					</div>
 
-					{#if yGroups.length > 0}
+					{#if secondaryGroups.length > 0}
 						<div class="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4">
 							<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-								{#each yGroups as group}
+								{#each secondaryGroups as group}
 									<button
 										class="px-3 py-2 text-left rounded border text-sm transition-colors duration-200 cursor-pointer select-none
-											{selectedYGroups.has(group.label)
+											{selectedSecondaryGroups.has(group.label)
 												? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
 												: 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}"
 										on:click={() => toggleYGroup(group.label)}
