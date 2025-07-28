@@ -9,8 +9,12 @@
 	export let data: any[] = [];
 	export let availableFields: string[];
 	export let selectedFields: Set<string>;
+	export let crossGroupingMode: boolean = false;
 	export let groups: Array<{label: string, size: number}> = [];
 	export let selectedGroups: Set<string> = new Set();
+	export let secondaryFields: Set<string> = new Set();
+	export let secondaryGroups: Array<{label: string, size: number}> = [];
+	export let selectedSecondaryGroups: Set<string> = new Set();
 	// Removed: loading is handled by parent component
 	// export let loading: boolean = false;
 	export let Plotly: any = null;
@@ -50,8 +54,22 @@
 
 	// Update legend data reactively when groups or fields change
 	$: {
-		if (data.length > 0 && selectedGroups.size > 0 && selectedFields.size > 0) {
-			legendData = getLegendData();
+		if (data.length > 0 && selectedFields.size > 0) {
+			if (crossGroupingMode) {
+				// In cross-grouping mode, show legend if either primary or secondary groups are selected
+				if (selectedGroups.size > 0 || selectedSecondaryGroups.size > 0) {
+					legendData = getLegendData();
+				} else {
+					legendData = [];
+				}
+			} else {
+				// In basic mode, show legend if primary groups are selected
+				if (selectedGroups.size > 0) {
+					legendData = getLegendData();
+				} else {
+					legendData = [];
+				}
+			}
 		} else {
 			legendData = [];
 		}
@@ -106,14 +124,19 @@
 	}
 
 	function handleGroupSelectionChanges(orderedFields: string[]) {
+		// In cross-grouping mode, consider both primary and secondary groups
+		const allSelectedGroups = crossGroupingMode 
+			? new Set([...selectedGroups, ...selectedSecondaryGroups])
+			: selectedGroups;
+		
 		// Find groups that need to be added (new selections not yet rendered)
-		const toAdd = [...selectedGroups].filter(group => !renderedTraces.has(group));
+		const toAdd = [...allSelectedGroups].filter(group => !renderedTraces.has(group));
 		
 		// Find groups that need to be hidden (rendered but not selected)
-		const toHide = [...renderedTraces.keys()].filter(group => !selectedGroups.has(group));
+		const toHide = [...renderedTraces.keys()].filter(group => !allSelectedGroups.has(group));
 		
 		// Find groups that need to be shown (rendered and selected)
-		const toShow = [...selectedGroups].filter(group => renderedTraces.has(group));
+		const toShow = [...allSelectedGroups].filter(group => renderedTraces.has(group));
 
 		if (toAdd.length > 0) {
 			// Need to add new traces - full re-render required
@@ -129,9 +152,14 @@
 		// Create visibility array for all current traces
 		const visibilityUpdates: boolean[] = [];
 		
+		// In cross-grouping mode, consider both primary and secondary groups
+		const allSelectedGroups = crossGroupingMode 
+			? new Set([...selectedGroups, ...selectedSecondaryGroups])
+			: selectedGroups;
+		
 		// Build visibility array based on trace order
 		for (const [groupLabel, traceIndex] of renderedTraces) {
-			if (selectedGroups.has(groupLabel)) {
+			if (allSelectedGroups.has(groupLabel)) {
 				visibilityUpdates[traceIndex] = true;
 			} else {
 				visibilityUpdates[traceIndex] = false;
@@ -184,6 +212,16 @@
 	}
 
 	function generatePlotData(orderedFields: string[]) {
+		if (crossGroupingMode) {
+			// Cross-grouping mode: handle both primary and secondary groups
+			return generateCrossGroupingPlotData(orderedFields);
+		} else {
+			// Basic mode: use primary groups only
+			return generateBasicPlotData(orderedFields);
+		}
+	}
+
+	function generateBasicPlotData(orderedFields: string[]) {
 		const grouped = new Map<string, any[]>();
 
 		for (const d of data) {
@@ -219,7 +257,83 @@
 			},
 		}));
 
-		const layout = {
+		return { traces, layout: generateLayout() };
+	}
+
+	function generateCrossGroupingPlotData(orderedFields: string[]) {
+		// Use parent-provided groups instead of regenerating from data
+		const allSelectedGroups = new Map<string, any[]>();
+		
+		// Generate primary group data
+		const primaryGrouped = new Map<string, any[]>();
+		for (const d of data) {
+			const key = orderedFields.length > 0
+				? orderedFields.map(f => d[f] ?? 'Unknown').join(' | ')
+				: 'All';
+			if (!primaryGrouped.has(key)) primaryGrouped.set(key, []);
+			primaryGrouped.get(key)!.push(d);
+		}
+		
+		// Add selected primary groups
+		for (const [key, group] of primaryGrouped) {
+			if (selectedGroups.has(key)) {
+				allSelectedGroups.set(key, group);
+			}
+		}
+
+		// Generate secondary group data if we have secondary groups from parent
+		if (secondaryGroups.length > 0 && selectedSecondaryGroups.size > 0) {
+			const secondaryGrouped = new Map<string, any[]>();
+			
+			// We need to determine secondary fields from the selected secondary groups
+			// Since we have the group labels, we can regenerate the grouping
+			for (const secondaryGroup of secondaryGroups) {
+				if (selectedSecondaryGroups.has(secondaryGroup.label)) {
+					// Find individuals that belong to this secondary group
+					const groupData = [];
+					for (const d of data) {
+						// Match data points to secondary group by reconstructing the key
+						if (secondaryFields && secondaryFields.size > 0) {
+							const orderedSecondaryFields = availableFields.filter(f => secondaryFields.has(f));
+							const key = orderedSecondaryFields.length > 0
+								? orderedSecondaryFields.map(f => d[f] ?? 'Unknown').join(' | ')
+								: 'All';
+							if (key === secondaryGroup.label) {
+								groupData.push(d);
+							}
+						}
+					}
+					allSelectedGroups.set(secondaryGroup.label, groupData);
+				}
+			}
+		}
+
+		// Sort combined groups by size (for intertwined legend)
+		const sortedEntries = Array.from(allSelectedGroups.entries()).sort(
+			(a, b) => b[1].length - a[1].length
+		);
+
+		const traces = sortedEntries.map(([key, group]) => ({
+			x: group.map(d => d.pc[pcX]),
+			y: group.map(d => d.pc[pcY]),
+			text: group.map(d => key),
+			mode: 'markers',
+			type: 'scattergl',
+			name: `(${group.length}) ${key}`,
+			hovertemplate: `PC${pcX + 1}: %{x}<br>PC${pcY + 1}: %{y}<br>%{text}<extra></extra>`,
+			marker: {
+				size: 6,
+				opacity: 0.6,
+				color: getGroupColor(key),
+			},
+		}));
+
+		return { traces, layout: generateLayout() };
+	}
+
+	function generateLayout() {
+
+		return {
 			title: {
 				text: `PCA: PC${pcX + 1} vs PC${pcY + 1}`,
 				font: {
@@ -253,8 +367,6 @@
 			},
 			showlegend: false
 		};
-
-		return { traces, layout };
 	}
 
 	// Helper function to compare sets for equality
@@ -318,49 +430,104 @@
 			.map(([key, group]) => `(${group.length}) ${key}`);
 	}
 
-	// Get legend data for visible groups with colors and sizes
+	// Get legend data for visible groups with colors and sizes - handles cross-grouping mode
 	function getLegendData(): Array<{label: string, color: string, size: number}> {
-		if (!data.length || selectedGroups.size === 0) return [];
-		
-		const orderedFields = availableFields.filter(f => selectedFields.has(f));
-		const grouped = new Map<string, any[]>();
-		
-		for (const d of data) {
-			const key = orderedFields.length > 0
-				? orderedFields.map(f => d[f] ?? 'Unknown').join(' | ')
-				: 'All';
-			if (!grouped.has(key)) grouped.set(key, []);
-			grouped.get(key)!.push(d);
+		if (!data.length) return [];
+
+		if (crossGroupingMode) {
+			// Cross-grouping mode: combine primary and secondary groups, sort by size for intertwined legend
+			const allGroupsWithSizes = new Map<string, number>();
+			
+			// Add primary groups if any are selected
+			if (selectedGroups.size > 0 && selectedFields.size > 0) {
+				const orderedFields = availableFields.filter(f => selectedFields.has(f));
+				const primaryGrouped = new Map<string, any[]>();
+				
+				for (const d of data) {
+					const key = orderedFields.length > 0
+						? orderedFields.map(f => d[f] ?? 'Unknown').join(' | ')
+						: 'All';
+					if (!primaryGrouped.has(key)) primaryGrouped.set(key, []);
+					primaryGrouped.get(key)!.push(d);
+				}
+				
+				for (const [key, individuals] of primaryGrouped) {
+					if (selectedGroups.has(key)) {
+						allGroupsWithSizes.set(key, individuals.length);
+					}
+				}
+			}
+			
+			// Add secondary groups if any are selected (use parent-provided secondary groups)
+			if (selectedSecondaryGroups.size > 0 && secondaryGroups.length > 0) {
+				for (const secondaryGroup of secondaryGroups) {
+					if (selectedSecondaryGroups.has(secondaryGroup.label)) {
+						allGroupsWithSizes.set(secondaryGroup.label, secondaryGroup.size);
+					}
+				}
+			}
+			
+			// Convert to legend data and sort by size (intertwined by size as requested)
+			return Array.from(allGroupsWithSizes.entries())
+				.map(([label, size]) => ({ label, color: getGroupColor(label), size }))
+				.sort((a, b) => b.size - a.size);
+			
+		} else {
+			// Basic mode: use primary groups only
+			if (selectedGroups.size === 0 || selectedFields.size === 0) return [];
+			
+			const orderedFields = availableFields.filter(f => selectedFields.has(f));
+			const grouped = new Map<string, any[]>();
+
+			for (const d of data) {
+				const key = orderedFields.length > 0
+					? orderedFields.map(f => d[f] ?? 'Unknown').join(' | ')
+					: 'All';
+				if (!grouped.has(key)) grouped.set(key, []);
+				grouped.get(key)!.push(d);
+			}
+
+			// Return only selected groups with their colors and sizes
+			return Array.from(grouped.entries())
+				.filter(([key, group]) => selectedGroups.has(key))
+				.sort((a, b) => b[1].length - a[1].length)
+				.map(([key, group]) => ({
+					label: key,
+					color: getGroupColor(key),
+					size: group.length
+				}));
 		}
-		
-		// Return only selected groups with their colors and sizes
-		return Array.from(grouped.entries())
-			.filter(([key, group]) => selectedGroups.has(key))
-			.sort((a, b) => b[1].length - a[1].length)
-			.map(([key, group]) => ({
-				label: key,
-				color: getGroupColor(key),
-				size: group.length
-			}));
 	}
 
 	// Handle PCA tab activation and plot rendering
-	$: if (isActive && data.length > 0 && Plotly && plotDiv && selectedFields.size > 0 && groups.length > 0 && selectedGroups.size > 0) {
-		// Groups are loaded and selected, render plot
-		if (!plotInitialized) {
+	$: if (isActive && data.length > 0 && Plotly && plotDiv && selectedFields.size > 0 && groups.length > 0) {
+		const hasGroupsToRender = crossGroupingMode 
+			? (selectedGroups.size > 0 || selectedSecondaryGroups.size > 0)
+			: selectedGroups.size > 0;
+			
+		if (hasGroupsToRender && !plotInitialized) {
 			setTimeout(() => updatePlot(), 100);
 		}
 	}
 
-	// Reset plot initialization when tab becomes active (handles tab switching)
-	$: if (isActive && groups.length > 0 && selectedGroups.size > 0) {
-		plotInitialized = false;
+	// Reset plot initialization when tab becomes active or mode changes
+	$: if (isActive && groups.length > 0) {
+		const hasGroupsToRender = crossGroupingMode 
+			? (selectedGroups.size > 0 || selectedSecondaryGroups.size > 0)
+			: selectedGroups.size > 0;
+			
+		if (hasGroupsToRender) {
+			plotInitialized = false;
+		}
 	}
 
 	// Render plot when groups are loaded and selected (handles initial load)
-	$: if (isActive && groups.length > 0 && selectedGroups.size > 0 && Plotly && plotDiv && data.length > 0) {
-		// Only render if plot hasn't been initialized
-		if (!plotInitialized) {
+	$: if (isActive && groups.length > 0 && Plotly && plotDiv && data.length > 0) {
+		const hasGroupsToRender = crossGroupingMode 
+			? (selectedGroups.size > 0 || selectedSecondaryGroups.size > 0)
+			: selectedGroups.size > 0;
+			
+		if (hasGroupsToRender && !plotInitialized) {
 			setTimeout(() => updatePlot(), 100);
 		}
 	}
@@ -382,13 +549,13 @@
 	<div class="flex h-[600px] md:h-[700px] lg:h-[750px] gap-4">
 		<!-- Plot area -->
 		<div class="flex-1 relative">
-			{#if selectedGroups.size === 0}
+			{#if crossGroupingMode ? (selectedGroups.size === 0 && selectedSecondaryGroups.size === 0) : selectedGroups.size === 0}
 				<div class="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 z-10">
 					<div class="text-center">
 						<div class="text-4xl mb-4">📊</div>
 						<h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Groups</h3>
 						<p class="text-gray-600 dark:text-gray-400">
-							Choose groups above to display in the PCA plot
+							{crossGroupingMode ? 'Choose primary or secondary groups above to display in the PCA plot' : 'Choose groups above to display in the PCA plot'}
 						</p>
 					</div>
 				</div>

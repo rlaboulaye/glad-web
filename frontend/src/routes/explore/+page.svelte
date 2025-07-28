@@ -116,35 +116,69 @@
 		return groupColorMap.get(groupLabel)!;
 	}
 
+	// Helper function to generate PCA groups from data and fields
+	function generatePcaGroups(fields: Set<string>): Array<{label: string, size: number}> {
+		if (!data.length || fields.size === 0) return [];
+		
+		// Generate groups from current data and field selection
+		const orderedFields = availableFields.filter(f => fields.has(f));
+		const grouped = new Map<string, any[]>();
+
+		for (const d of data) {
+			const key = orderedFields.length > 0
+				? orderedFields.map(f => d[f] ?? 'Unknown').join(' | ')
+				: 'All';
+
+			if (!grouped.has(key)) grouped.set(key, []);
+			grouped.get(key)!.push(d);
+		}
+
+		// Convert to group objects and sort by size (descending)
+		return Array.from(grouped.entries())
+			.map(([label, individuals]) => ({ label, size: individuals.length }))
+			.sort((a, b) => b.size - a.size);
+	}
+
 	// Group loading functions
 	async function loadPcaGroups() {
 		if (!data.length || selectedFields.size === 0) return;
 		
 		groupsLoading = true;
 		try {
-			// Generate groups from current data and field selection (from PCA logic)
-			const orderedFields = availableFields.filter(f => selectedFields.has(f));
-			const grouped = new Map<string, any[]>();
-
-			for (const d of data) {
-				const key = orderedFields.length > 0
-					? orderedFields.map(f => d[f] ?? 'Unknown').join(' | ')
-					: 'All';
-
-				if (!grouped.has(key)) grouped.set(key, []);
-				grouped.get(key)!.push(d);
-			}
-
-			// Convert to group objects and sort by size (descending)
-			const newGroups = Array.from(grouped.entries())
-				.map(([label, individuals]) => ({ label, size: individuals.length }))
-				.sort((a, b) => b.size - a.size);
-
+			const newGroups = generatePcaGroups(selectedFields);
 			await reconcileGroups(newGroups);
 			
 		} catch (err) {
 			toast.error('Failed to load PCA groups');
 			console.error('Error loading PCA groups:', err);
+		} finally {
+			groupsLoading = false;
+		}
+	}
+
+	async function loadPcaSecondaryGroups() {
+		if (!data.length || secondaryFields.size === 0) return;
+		
+		groupsLoading = true;
+		try {
+			const newSecondaryGroups = generatePcaGroups(secondaryFields);
+			
+			// Reconcile secondary selections using same logic pattern as IBD secondary groups
+			const reconciledSecondarySelections = new Set(
+				[...selectedSecondaryGroups].filter(selection => 
+					newSecondaryGroups.some(group => group.label === selection)
+				)
+			);
+			
+			secondaryGroups = newSecondaryGroups;
+			selectedSecondaryGroups = reconciledSecondarySelections.size > 0 ? reconciledSecondarySelections : new Set(newSecondaryGroups.slice(0, 8).map(g => g.label));
+			
+			// Mark secondary groups as reconciled for current field selection
+			secondaryGroupsReconciledForFields = new Set(secondaryFields);
+			
+		} catch (err) {
+			toast.error('Failed to load secondary-axis PCA groups');
+			console.error('Error loading secondary-axis PCA groups:', err);
 		} finally {
 			groupsLoading = false;
 		}
@@ -393,7 +427,7 @@
 			if (activeTab === 'pca') {
 				loadPcaGroups();
 			} else if (activeTab === 'ibd') {
-				// Load groups for symmetric mode, or X-axis groups for asymmetric mode
+				// Load groups for basic mode, or X-axis groups for cross-grouping mode
 				loadIbdGroups();
 			}
 		} else {
@@ -404,9 +438,13 @@
 	}
 
 	// Reactive: Load secondary-axis groups when cross-grouping mode is enabled and secondaryFields change
-	$: if (crossGroupingMode && activeTab === 'ibd') {
+	$: if (crossGroupingMode) {
 		if (secondaryFields.size > 0) {
-			loadSecondaryGroups();
+			if (activeTab === 'pca') {
+				loadPcaSecondaryGroups();
+			} else if (activeTab === 'ibd') {
+				loadSecondaryGroups();
+			}
 		} else {
 			// Clear secondary groups when no secondary metadata fields are selected
 			secondaryGroups = [];
@@ -435,7 +473,7 @@
 				.sort((a, b) => b.size - a.size)
 				.map(group => `(${group.size}) ${group.label}`)
 			:
-			// For symmetric mode, use selected groups
+			// For basic mode, use selected groups
 			[...selectedGroups]
 				.map(label => {
 					const group = groups.find(g => g.label === label);
@@ -533,7 +571,7 @@
 				bind:selectedFields
 				bind:secondaryFields
 				bind:crossGroupingMode
-				proposeCrossGrouping={activeTab === 'ibd'}
+				proposeCrossGrouping={true}
 				title="Group by Metadata:"
 				on:fieldsChanged={handleFieldsChanged}
 				on:secondaryFieldsChanged={handleSecondaryFieldsChanged}
@@ -565,8 +603,12 @@
 					{data}
 					{availableFields}
 					bind:selectedFields
+					bind:crossGroupingMode
 					bind:groups
 					bind:selectedGroups
+					bind:secondaryFields
+					bind:secondaryGroups
+					bind:selectedSecondaryGroups
 					loading={groupsLoading}
 					{Plotly}
 					isActive={activeTab === 'pca'}
