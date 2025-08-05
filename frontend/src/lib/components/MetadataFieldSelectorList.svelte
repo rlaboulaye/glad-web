@@ -1,35 +1,15 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
+	import { getFieldTooltip } from '$lib/data/fieldTooltips';
 
 	// Props
 	export let availableFields: string[] = [];
 	export let selectedFields: Set<string> = new Set();
 	export let title: string = "";
 	export let colorClass: string = "indigo"; // "indigo" for primary, "green" for secondary
+	export let showDescriptions: boolean = false; // New prop for layout toggle
 
 	const dispatch = createEventDispatcher();
-
-	// Get tooltip text for metadata fields
-	function getFieldTooltip(field: string): string {
-		switch (field) {
-			case 'phs':
-				return 'Unique identifier assigned to a phenotype study by dbGaP';
-			case 'country':
-				return 'Country where the sample was taken';
-			case 'region':
-				return 'Region where the sample was taken';
-			case 'sex':
-				return 'Reported sex of sample';
-			case 'ethnicity':
-				return 'One of ["Hispanic", "NotHispanic", "NativeAmerican"]';
-			case 'ethnicity_source':
-				return 'Method used to determine ethnicity: survey_defined, admixture_defined, or none';
-			case 'ibd_community':
-				return 'Community assignment produced by running Infomap on total pairwise IBD between samples';
-			default:
-				return '';
-		}
-	}
 
 	function toggleField(field: string) {
 		if (selectedFields.has(field)) {
@@ -53,16 +33,36 @@
 	{#if title}
 		<p class="text-gray-700 dark:text-gray-300 mb-2 font-medium">{title}</p>
 	{/if}
-	<div class="flex flex-wrap gap-2">
-		{#each availableFields as field}
-			<button
-				class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
-					{selectedFields.has(field) ? selectedClasses : unselectedClasses}"
-				title={getFieldTooltip(field)}
-				on:click={() => toggleField(field)}
-			>
-				{field}
-			</button>
-		{/each}
-	</div>
+	
+	{#if showDescriptions}
+		<!-- Vertical layout with aligned descriptions -->
+		<div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 items-start">
+			{#each availableFields as field}
+				<button
+					class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none whitespace-nowrap
+						{selectedFields.has(field) ? selectedClasses : unselectedClasses}"
+					on:click={() => toggleField(field)}
+				>
+					{field}
+				</button>
+				<div class="pt-2 text-sm text-gray-600 dark:text-gray-400">
+					{getFieldTooltip(field)}
+				</div>
+			{/each}
+		</div>
+	{:else}
+		<!-- Horizontal layout with tooltips -->
+		<div class="flex flex-wrap gap-2">
+			{#each availableFields as field}
+				<button
+					class="px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 cursor-pointer select-none
+						{selectedFields.has(field) ? selectedClasses : unselectedClasses}"
+					title={getFieldTooltip(field)}
+					on:click={() => toggleField(field)}
+				>
+					{field}
+				</button>
+			{/each}
+		</div>
+	{/if}
 </div>
