@@ -241,10 +241,16 @@ impl IbdComputation {
             }
         }
 
-        // Divide by total possible pairs (including zeros), not just non-zero pairs
+        // Count overlapping individuals (same-individual pairs that should be excluded from denominator)
+        let row_set: HashSet<usize> = rows.iter().copied().collect();
+        let overlapping_individuals = col_set.intersection(&row_set).count();
+        
+        // Divide by total possible pairs minus same-individual pairs (diagonal entries)
         let total_pairs = rows.len() * cols.len();
-        if total_pairs > 0 {
-            (sum / total_pairs as f64) as f32
+        let valid_pairs = total_pairs - overlapping_individuals;
+        
+        if valid_pairs > 0 {
+            (sum / valid_pairs as f64) as f32
         } else {
             0.0
         }
@@ -269,10 +275,16 @@ impl IbdComputation {
             }
         }
 
-        // Divide by total possible pairs (including zeros), not just non-zero pairs
+        // Count overlapping individuals (same-individual pairs that should be excluded from denominator)
+        let col_set: HashSet<usize> = group_b.iter().copied().collect();
+        let overlapping_individuals = row_set.intersection(&col_set).count();
+        
+        // Divide by total possible pairs minus same-individual pairs (diagonal entries)
         let total_pairs = group_a.len() * group_b.len();
-        if total_pairs > 0 {
-            (sum / total_pairs as f64) as f32
+        let valid_pairs = total_pairs - overlapping_individuals;
+        
+        if valid_pairs > 0 {
+            (sum / valid_pairs as f64) as f32
         } else {
             0.0
         }
