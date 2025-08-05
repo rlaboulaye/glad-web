@@ -15,8 +15,7 @@ pub mod pca;
 use crate::api::ApiError;
 
 // File paths
-const PCA_DATA_PATH: &str = "data/visualization_data/pca_merged.json";
-const IBD_COMMUNITIES_PATH: &str = "data/visualization_data/info_all_membership_df.tsv";
+const SAMPLE_METADATA_PATH: &str = "data/visualization_data/sample_metadata.json";
 const IBD_MATRIX_PATH: &str = "data/visualization_data/ibd.all.mtx";
 
 /// Canonical order for grouping fields (ensures consistent cache keys)
@@ -51,8 +50,8 @@ pub static VISUALIZATION_CACHE: Lazy<VisualizationCache> =
 pub struct VisualizationCache {
     /// Mapping from individual ID to matrix index
     pub individual_to_index: HashMap<String, usize>,
-    /// Mapping from IBD community ID to list of matrix indices
-    pub community_to_individuals: HashMap<u32, Vec<usize>>,
+    /// Mapping from IBD community name to list of matrix indices
+    pub community_to_individuals: HashMap<String, Vec<usize>>,
     /// Individual data indexed by matrix position
     pub individuals: Vec<Individual>,
     /// Pre-sorted communities by size (largest first)
@@ -92,8 +91,8 @@ pub struct Group {
 /// Information about an IBD community (for caching)
 #[derive(Debug, Clone)]
 pub struct CommunityInfo {
-    /// Community ID
-    pub id: u32,
+    /// Community name
+    pub name: String,
     /// Number of individuals in the community
     pub size: usize,
 }
@@ -110,7 +109,7 @@ pub struct Individual {
     pub phs: Option<String>,
     pub self_described: Option<String>,
     pub project: Option<String>,
-    pub ibd_community: Option<u32>,
+    pub ibd_community: Option<String>,
     pub glad_status: Option<String>,
     /// Index in the IBD sparse matrix (row/column index), None if not in IBD data
     #[serde(skip)]
@@ -133,8 +132,8 @@ impl VisualizationCache {
             available_groups: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        // Load and merge PCA + IBD data
-        cache.load_and_merge_individual_data()?;
+        // Load consolidated sample metadata
+        cache.load_sample_metadata()?;
 
         // Load sparse matrix
         cache.load_ibd_matrix()?;
@@ -151,25 +150,23 @@ impl VisualizationCache {
         Ok(cache)
     }
 
-    /// Load and merge PCA and IBD data
-    fn load_and_merge_individual_data(&mut self) -> Result<(), ApiError> {
-        info!("Loading and merging PCA and IBD data...");
+    /// Load consolidated sample metadata from single JSON file
+    fn load_sample_metadata(&mut self) -> Result<(), ApiError> {
+        info!("Loading consolidated sample metadata...");
 
-        // Step 1: Load PCA data
-        let pca_content = std::fs::read_to_string(PCA_DATA_PATH).map_err(|e| {
-            error!("Failed to read PCA file {}: {}", PCA_DATA_PATH, e);
+        let metadata_content = std::fs::read_to_string(SAMPLE_METADATA_PATH).map_err(|e| {
+            error!("Failed to read sample metadata file {}: {}", SAMPLE_METADATA_PATH, e);
             ApiError::InternalServerError
         })?;
 
-        let pca_data: Vec<serde_json::Value> = serde_json::from_str(&pca_content).map_err(|e| {
-            error!("Failed to parse PCA JSON: {}", e);
+        let sample_data: Vec<serde_json::Value> = serde_json::from_str(&metadata_content).map_err(|e| {
+            error!("Failed to parse sample metadata JSON: {}", e);
             ApiError::InternalServerError
         })?;
 
-        // Create individuals from PCA data
-        let mut individuals_map: HashMap<String, Individual> = HashMap::new();
+        let mut individuals = Vec::new();
 
-        for item in pca_data {
+        for item in sample_data {
             if let (Some(id), Some(pc_array)) = (
                 item.get("id").and_then(|v| v.as_str()),
                 item.get("pc").and_then(|v| v.as_array()),
@@ -197,84 +194,44 @@ impl VisualizationCache {
                         .get("self_described")
                         .and_then(|v| v.as_bool())
                         .map(|b| b.to_string()),
-                    project: None,
-                    ibd_community: None,
-                    glad_status: None,
-                    ibd_matrix_index: None,
+                    project: None, // Not included in consolidated metadata
+                    ibd_community: item
+                        .get("ibd_community")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    glad_status: None, // Not included in consolidated metadata
+                    ibd_matrix_index: item
+                        .get("ibd_matrix_index")
+                        .and_then(|v| v.as_u64())
+                        .map(|v| v as usize),
                 };
 
-                individuals_map.insert(id.to_string(), individual);
+                individuals.push(individual);
             }
         }
 
-        info!("Loaded {} individuals from PCA data", individuals_map.len());
-
-        // Step 2: Load IBD data and merge additional fields
-        let ibd_content = std::fs::read_to_string(IBD_COMMUNITIES_PATH).map_err(|e| {
-            error!(
-                "Failed to read IBD TSV file {}: {}",
-                IBD_COMMUNITIES_PATH, e
-            );
-            ApiError::InternalServerError
-        })?;
-
-        let mut csv_reader = csv::ReaderBuilder::new()
-            .delimiter(b'\t')
-            .from_reader(ibd_content.as_bytes());
-
-        // Define a struct for parsing IBD community TSV rows
-        #[derive(Deserialize)]
-        struct IbdCommunityRow {
-            #[serde(rename = "Vcf_ID")]
-            matrix_index: usize,
-            #[serde(rename = "Sample")]
-            sample: String,
-            #[serde(rename = "Membership")]
-            membership: Option<u32>,
-            #[serde(rename = "Project")]
-            project: Option<String>,
-            #[serde(rename = "GLAD_Status")]
-            glad_status: Option<String>,
-        }
-
-        // Parse TSV and merge data, using Vcf_ID as the matrix index
-        for result in csv_reader.deserialize::<IbdCommunityRow>() {
-            let row = result.map_err(|e| {
-                error!("Failed to parse IBD community TSV row: {}", e);
-                ApiError::InternalServerError
-            })?;
-
-            if let Some(individual) = individuals_map.get_mut(&row.sample) {
-                // Merge additional fields from IBD data
-                individual.ibd_community = row.membership;
-                individual.project = row.project;
-                individual.glad_status = row.glad_status;
-                // Use the Vcf_ID as the IBD matrix index
-                individual.ibd_matrix_index = Some(row.matrix_index);
-            }
-        }
-
-        // Step 3: Build final data structures
-        self.individuals = individuals_map.into_values().collect();
+        info!("Loaded {} individuals from consolidated metadata", individuals.len());
 
         // Build index mappings
-        for (array_index, individual) in self.individuals.iter().enumerate() {
+        for (array_index, individual) in individuals.iter().enumerate() {
             self.individual_to_index
                 .insert(individual.id.clone(), array_index);
 
             // Build community mappings using IBD matrix indices (not array indices)
-            if let (Some(community_id), Some(ibd_matrix_index)) =
-                (individual.ibd_community, individual.ibd_matrix_index)
+            if let (Some(community_name), Some(ibd_matrix_index)) =
+                (&individual.ibd_community, individual.ibd_matrix_index)
             {
                 self.community_to_individuals
-                    .entry(community_id)
+                    .entry(community_name.clone())
                     .or_insert_with(Vec::new)
-                    .push(ibd_matrix_index); // Use the correct IBD matrix index
+                    .push(ibd_matrix_index);
             }
         }
 
+        self.individuals = individuals;
+
         info!(
-            "Merged data for {} individuals with {} IBD communities",
+            "Processed {} individuals with {} IBD communities",
             self.individuals.len(),
             self.community_to_individuals.len()
         );
@@ -328,8 +285,8 @@ impl VisualizationCache {
     }
 
     /// Get individuals in a specific community
-    pub fn get_community_individuals(&self, community_id: u32) -> Option<&Vec<usize>> {
-        self.community_to_individuals.get(&community_id)
+    pub fn get_community_individuals(&self, community_name: &str) -> Option<&Vec<usize>> {
+        self.community_to_individuals.get(community_name)
     }
 
     /// Get matrix index for an individual
@@ -344,8 +301,8 @@ impl VisualizationCache {
         self.communities_by_size = self
             .community_to_individuals
             .iter()
-            .map(|(&id, individuals)| CommunityInfo {
-                id,
+            .map(|(name, individuals)| CommunityInfo {
+                name: name.clone(),
                 size: individuals.len(),
             })
             .collect();
@@ -487,7 +444,7 @@ impl VisualizationCache {
             "region" => individual.region.clone(),
             "ethnicity" => individual.ethnicity.clone(),
             "self_described" => individual.self_described.clone(),
-            "ibd_community" => individual.ibd_community.map(|c| c.to_string()),
+            "ibd_community" => individual.ibd_community.clone(),
             _ => None, // Reject non-canonical fields
         }
     }

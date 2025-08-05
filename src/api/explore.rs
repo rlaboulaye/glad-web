@@ -1,12 +1,9 @@
 use axum::{extract::Query, Json};
 use serde::Deserialize;
 use serde_json::Value;
-use std::fs;
 
-use crate::api::{ApiError, ApiResult};
+use crate::api::ApiResult;
 use crate::visualization::VISUALIZATION_CACHE;
-
-const PCA_DATA_PATH: &str = "data/visualization_data/pca_merged.json";
 
 #[derive(Deserialize)]
 pub struct CommunitiesQuery {
@@ -58,7 +55,7 @@ pub async fn get_ibd_communities(Query(params): Query<CommunitiesQuery>) -> ApiR
         .iter()
         .take(limit)
         .map(|community| serde_json::json!({
-            "id": community.id,
+            "id": community.name,
             "size": community.size
         }))
         .collect();
