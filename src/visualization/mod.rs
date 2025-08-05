@@ -127,7 +127,7 @@ impl VisualizationCache {
             communities_by_size: Vec::new(),
             ibd_matrix: None,
             ibd_matrix_t: None,
-            pairwise_ibd_cache: Arc::new(Cache::new(50_000)),
+            pairwise_ibd_cache: Arc::new(Cache::new(100_000)),
             available_groups: Arc::new(RwLock::new(HashMap::new())),
         };
 
