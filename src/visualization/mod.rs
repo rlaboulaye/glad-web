@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use rayon::prelude::*;
+use quick_cache::sync::Cache;
 use serde::{Deserialize, Serialize};
 use sprs::{CsMat, TriMatI};
 use std::collections::{HashMap, HashSet};
@@ -8,7 +8,6 @@ use std::io::BufReader;
 use std::sync::{Arc, RwLock};
 use tracing::{error, info};
 
-pub mod cache;
 pub mod ibd;
 pub mod pca;
 
@@ -60,8 +59,8 @@ pub struct VisualizationCache {
     pub ibd_matrix: Option<CsMat<f32>>,
     /// Transposed IBD matrix for optimization
     pub ibd_matrix_t: Option<CsMat<f32>>,
-    /// Cached computed matrices for different groupings
-    pub computed_matrices: Arc<RwLock<HashMap<String, ComputedMatrix>>>,
+    /// Cached pairwise IBD values: group pair key -> f32 value
+    pub pairwise_ibd_cache: Arc<Cache<String, f32>>,
     /// Available groups for each grouping combination
     pub available_groups: Arc<RwLock<HashMap<String, Vec<Group>>>>,
 }
@@ -128,7 +127,7 @@ impl VisualizationCache {
             communities_by_size: Vec::new(),
             ibd_matrix: None,
             ibd_matrix_t: None,
-            computed_matrices: Arc::new(RwLock::new(HashMap::new())),
+            pairwise_ibd_cache: Arc::new(Cache::new(50_000)),
             available_groups: Arc::new(RwLock::new(HashMap::new())),
         };
 
@@ -155,14 +154,18 @@ impl VisualizationCache {
         info!("Loading consolidated sample metadata...");
 
         let metadata_content = std::fs::read_to_string(SAMPLE_METADATA_PATH).map_err(|e| {
-            error!("Failed to read sample metadata file {}: {}", SAMPLE_METADATA_PATH, e);
+            error!(
+                "Failed to read sample metadata file {}: {}",
+                SAMPLE_METADATA_PATH, e
+            );
             ApiError::InternalServerError
         })?;
 
-        let sample_data: Vec<serde_json::Value> = serde_json::from_str(&metadata_content).map_err(|e| {
-            error!("Failed to parse sample metadata JSON: {}", e);
-            ApiError::InternalServerError
-        })?;
+        let sample_data: Vec<serde_json::Value> =
+            serde_json::from_str(&metadata_content).map_err(|e| {
+                error!("Failed to parse sample metadata JSON: {}", e);
+                ApiError::InternalServerError
+            })?;
 
         let mut individuals = Vec::new();
 
@@ -210,7 +213,10 @@ impl VisualizationCache {
             }
         }
 
-        info!("Loaded {} individuals from consolidated metadata", individuals.len());
+        info!(
+            "Loaded {} individuals from consolidated metadata",
+            individuals.len()
+        );
 
         // Build index mappings
         for (array_index, individual) in individuals.iter().enumerate() {

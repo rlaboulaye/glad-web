@@ -29,40 +29,26 @@ impl IbdComputation {
         let mut cache_hits = 0;
 
         // Check cache for each pair and identify what needs to be computed
-        {
-            let cache = VISUALIZATION_CACHE
-                .computed_matrices
-                .read()
-                .map_err(|_| ApiError::InternalServerError)?;
+        for i in 0..n_groups {
+            for j in i..n_groups {
+                // Only compute upper triangle + diagonal
+                let cache_key =
+                    Self::generate_pair_cache_key(&groups[i].label, &groups[j].label);
 
-            for i in 0..n_groups {
-                for j in i..n_groups {
-                    // Only compute upper triangle + diagonal
-                    let cache_key =
-                        Self::generate_pair_cache_key(&groups[i].label, &groups[j].label);
-
-                    if let Some(cached_matrix) = cache.get(&cache_key) {
-                        // Extract the single value from cached 1x1 or 2x2 matrix
-                        let cached_value = if i == j {
-                            cached_matrix.matrix[0][0] // Intra-group (1x1 matrix)
-                        } else {
-                            cached_matrix.matrix[0][1] // Inter-group (off-diagonal of 2x2 matrix)
-                        };
-
-                        result_matrix[i][j] = cached_value;
-                        if i != j {
-                            result_matrix[j][i] = cached_value; // Symmetric
-                        }
-                        cache_hits += 1;
-                    } else {
-                        // Need to compute this pair
-                        pairs_to_compute.push((
-                            i,
-                            j,
-                            groups[i].label.clone(),
-                            groups[j].label.clone(),
-                        ));
+                if let Some(cached_value) = VISUALIZATION_CACHE.pairwise_ibd_cache.get(&cache_key) {
+                    result_matrix[i][j] = cached_value;
+                    if i != j {
+                        result_matrix[j][i] = cached_value; // Symmetric
                     }
+                    cache_hits += 1;
+                } else {
+                    // Need to compute this pair
+                    pairs_to_compute.push((
+                        i,
+                        j,
+                        groups[i].label.clone(),
+                        groups[j].label.clone(),
+                    ));
                 }
             }
         }
@@ -93,47 +79,24 @@ impl IbdComputation {
             })??;
 
             // Store computed values in result matrix and cache
+            for ((i, j, label_i, label_j), computed_value) in
+                pairs_to_compute.iter().zip(computed_values.iter())
             {
-                let mut cache = VISUALIZATION_CACHE
-                    .computed_matrices
-                    .write()
-                    .map_err(|_| ApiError::InternalServerError)?;
-
-                for ((i, j, label_i, label_j), computed_value) in
-                    pairs_to_compute.iter().zip(computed_values.iter())
-                {
-                    result_matrix[*i][*j] = *computed_value;
-                    if i != j {
-                        result_matrix[*j][*i] = *computed_value; // Symmetric
-                    }
-
-                    // Cache the computed pair
-                    let cache_key = Self::generate_pair_cache_key(label_i, label_j);
-                    let cached_matrix = if i == j {
-                        // Intra-group: 1x1 matrix
-                        ComputedMatrix {
-                            matrix: vec![vec![*computed_value]],
-                            group_labels: vec![label_i.clone()],
-                            group_sizes: vec![groups[*i].size],
-                        }
-                    } else {
-                        // Inter-group: 2x2 symmetric matrix
-                        ComputedMatrix {
-                            matrix: vec![vec![0.0, *computed_value], vec![*computed_value, 0.0]],
-                            group_labels: vec![label_i.clone(), label_j.clone()],
-                            group_sizes: vec![groups[*i].size, groups[*j].size],
-                        }
-                    };
-
-                    cache.insert(cache_key, cached_matrix);
+                result_matrix[*i][*j] = *computed_value;
+                if i != j {
+                    result_matrix[*j][*i] = *computed_value; // Symmetric
                 }
 
-                info!(
-                    "Cached {} new IBD pairs (cache size: {})",
-                    pairs_to_compute.len(),
-                    cache.len()
-                );
+                // Cache the computed pair value
+                let cache_key = Self::generate_pair_cache_key(label_i, label_j);
+                VISUALIZATION_CACHE.pairwise_ibd_cache.insert(cache_key, *computed_value);
             }
+
+            info!(
+                "Cached {} new IBD pairs (cache size: {})",
+                pairs_to_compute.len(),
+                VISUALIZATION_CACHE.pairwise_ibd_cache.len()
+            );
         }
 
         // Build final result
@@ -339,57 +302,24 @@ impl IbdComputation {
         let mut cache_hits = 0;
 
         // Check cache for each row-column pair
-        {
-            let cache = VISUALIZATION_CACHE
-                .computed_matrices
-                .read()
-                .map_err(|_| ApiError::InternalServerError)?;
+        for i in 0..n_row_groups {
+            for j in 0..n_column_groups {
+                let cache_key = Self::generate_pair_cache_key(
+                    &row_groups[i].label,
+                    &column_groups[j].label,
+                );
 
-            for i in 0..n_row_groups {
-                for j in 0..n_column_groups {
-                    let cache_key = Self::generate_pair_cache_key(
-                        &row_groups[i].label,
-                        &column_groups[j].label,
-                    );
-
-                    if let Some(cached_matrix) = cache.get(&cache_key) {
-                        // Extract the appropriate value from cached matrix
-                        let cached_value = if row_groups[i].label == column_groups[j].label {
-                            // Same group: use diagonal value (intra-group)
-                            cached_matrix.matrix[0][0]
-                        } else {
-                            // Different groups: use off-diagonal value (inter-group)
-                            // Find which position this pair occupies in the cached matrix
-                            if cached_matrix.group_labels.len() == 2 {
-                                // This is a 2x2 cached inter-group matrix
-                                if cached_matrix.group_labels[0] == row_groups[i].label {
-                                    cached_matrix.matrix[0][1]
-                                } else {
-                                    cached_matrix.matrix[1][0]
-                                }
-                            } else {
-                                // Shouldn't happen, but compute if needed
-                                pairs_to_compute.push((
-                                    i,
-                                    j,
-                                    row_groups[i].label.clone(),
-                                    column_groups[j].label.clone(),
-                                ));
-                                continue;
-                            }
-                        };
-
-                        result_matrix[i][j] = cached_value;
-                        cache_hits += 1;
-                    } else {
-                        // Need to compute this pair
-                        pairs_to_compute.push((
-                            i,
-                            j,
-                            row_groups[i].label.clone(),
-                            column_groups[j].label.clone(),
-                        ));
-                    }
+                if let Some(cached_value) = VISUALIZATION_CACHE.pairwise_ibd_cache.get(&cache_key) {
+                    result_matrix[i][j] = cached_value;
+                    cache_hits += 1;
+                } else {
+                    // Need to compute this pair
+                    pairs_to_compute.push((
+                        i,
+                        j,
+                        row_groups[i].label.clone(),
+                        column_groups[j].label.clone(),
+                    ));
                 }
             }
         }
@@ -420,44 +350,21 @@ impl IbdComputation {
             })??;
 
             // Store computed values in result matrix and cache
+            for ((i, j, label_row, label_column), computed_value) in
+                pairs_to_compute.iter().zip(computed_values.iter())
             {
-                let mut cache = VISUALIZATION_CACHE
-                    .computed_matrices
-                    .write()
-                    .map_err(|_| ApiError::InternalServerError)?;
+                result_matrix[*i][*j] = *computed_value;
 
-                for ((i, j, label_row, label_column), computed_value) in
-                    pairs_to_compute.iter().zip(computed_values.iter())
-                {
-                    result_matrix[*i][*j] = *computed_value;
-
-                    // Cache the computed pair (reuse existing cache key generation)
-                    let cache_key = Self::generate_pair_cache_key(label_row, label_column);
-                    let cached_matrix = if label_row == label_column {
-                        // Same group: 1x1 matrix
-                        ComputedMatrix {
-                            matrix: vec![vec![*computed_value]],
-                            group_labels: vec![label_row.clone()],
-                            group_sizes: vec![row_groups[*i].size],
-                        }
-                    } else {
-                        // Different groups: 2x2 symmetric matrix for cache consistency
-                        ComputedMatrix {
-                            matrix: vec![vec![0.0, *computed_value], vec![*computed_value, 0.0]],
-                            group_labels: vec![label_row.clone(), label_column.clone()],
-                            group_sizes: vec![row_groups[*i].size, column_groups[*j].size],
-                        }
-                    };
-
-                    cache.insert(cache_key, cached_matrix);
-                }
-
-                info!(
-                    "Cached {} new asymmetric IBD pairs (cache size: {})",
-                    pairs_to_compute.len(),
-                    cache.len()
-                );
+                // Cache the computed pair value
+                let cache_key = Self::generate_pair_cache_key(label_row, label_column);
+                VISUALIZATION_CACHE.pairwise_ibd_cache.insert(cache_key, *computed_value);
             }
+
+            info!(
+                "Cached {} new asymmetric IBD pairs (cache size: {})",
+                pairs_to_compute.len(),
+                VISUALIZATION_CACHE.pairwise_ibd_cache.len()
+            );
         }
 
         // Build final result - return column labels and sizes for consistency with frontend expectations
