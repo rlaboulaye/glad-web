@@ -32,7 +32,7 @@
 	let groupsReconciledForFields = new Set<string>(); // Track which fields the current groups represent
 	let secondaryGroupsReconciledForFields = new Set<string>(); // Track which fields the current secondary groups represent
 
-	// Cross-Grouping mode state (IBD only) - only secondary axis gets separate state
+	// Cross-Grouping mode state
 	// Primary axis uses the main selectedFields and selectedGroups
 	let secondaryFields = new Set<string>(); 
 	let secondaryGroups: Array<{label: string, size: number}> = [];
