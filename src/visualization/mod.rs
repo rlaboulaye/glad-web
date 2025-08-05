@@ -26,7 +26,7 @@ const CANONICAL_FIELD_ORDER: &[&str] = &[
     "region",
     "sex",
     "ethnicity",
-    "self_described",
+    "ethnicity_source",
     "ibd_community",
 ];
 
@@ -107,7 +107,7 @@ pub struct Individual {
     pub region: Option<String>,
     pub sex: Option<String>,
     pub phs: Option<String>,
-    pub self_described: Option<String>,
+    pub ethnicity_source: Option<String>,
     pub project: Option<String>,
     pub ibd_community: Option<String>,
     pub glad_status: Option<String>,
@@ -190,10 +190,10 @@ impl VisualizationCache {
                         .map(String::from),
                     sex: item.get("sex").and_then(|v| v.as_str()).map(String::from),
                     phs: item.get("phs").and_then(|v| v.as_str()).map(String::from),
-                    self_described: item
-                        .get("self_described")
-                        .and_then(|v| v.as_bool())
-                        .map(|b| b.to_string()),
+                    ethnicity_source: item
+                        .get("ethnicity_source")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                     project: None, // Not included in consolidated metadata
                     ibd_community: item
                         .get("ibd_community")
@@ -443,7 +443,7 @@ impl VisualizationCache {
             "country" => individual.country.clone(),
             "region" => individual.region.clone(),
             "ethnicity" => individual.ethnicity.clone(),
-            "self_described" => individual.self_described.clone(),
+            "ethnicity_source" => individual.ethnicity_source.clone(),
             "ibd_community" => individual.ibd_community.clone(),
             _ => None, // Reject non-canonical fields
         }

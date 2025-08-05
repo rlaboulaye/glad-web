@@ -47,13 +47,14 @@ for _, row in merged.iterrows():
         "region": row.get("Region_label", None),
         "sex": row.get("Sex", None),
         "ethnicity": row.get("Ethnicity", None),
-        "self_described": str(row.get("GLAD_Status", "")).strip().lower()
-        == "self_described",
+        "ethnicity_source": row.get("GLAD_Status", None),
         "ibd_matrix_index": row.get("Vcf_ID", None),
         "ibd_community": row.get("Membership", None),
     }
     if record["ibd_matrix_index"] and not np.isnan(record["ibd_matrix_index"]):
         record["ibd_matrix_index"] = int(record["ibd_matrix_index"])
+    if record["ethnicity_source"] == "self_described":
+        record["ethnicity_source"] = "survey_defined"
     records.append(record)
 
 

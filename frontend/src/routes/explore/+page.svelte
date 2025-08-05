@@ -19,7 +19,7 @@
 	let activeTab = 'pca'; // 'pca' or 'ibd'
 
 	// Metadata fields for selection
-	let availableFields = ['phs', 'country', 'region', 'sex', 'ethnicity', 'self_described', 'ibd_community'];
+	let availableFields = ['phs', 'country', 'region', 'sex', 'ethnicity', 'ethnicity_source', 'ibd_community'];
 	let selectedFields = new Set(['ethnicity']);
 	let crossGroupingMode = false;
 

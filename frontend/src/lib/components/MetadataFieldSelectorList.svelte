@@ -22,8 +22,8 @@
 				return 'Reported sex of sample';
 			case 'ethnicity':
 				return 'One of ["Hispanic", "NotHispanic", "NativeAmerican"]';
-			case 'self_described':
-				return 'True if sample self-reported as "Hispanic"';
+			case 'ethnicity_source':
+				return 'Method used to determine ethnicity: survey_defined, admixture_defined, or none';
 			case 'ibd_community':
 				return 'Community assignment produced by running Infomap on total pairwise IBD between samples';
 			default:
