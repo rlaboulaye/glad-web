@@ -40,7 +40,7 @@
 	let plotRendering = false;
 	let heatmapData: any = null;
 	let logScale = false; // Toggle for log scale visualization
-	let maxColorValue = 1.0; // Maximum value for colorbar scale
+	let maxColorValue = 0.2; // Maximum value for colorbar scale
 	
 	// Convert slider position to actual color value using logarithmic scale
 	function sliderToColorValue(sliderPos: number): number {
@@ -66,8 +66,8 @@
 		return ((logValue - logMin) / (logMax - logMin)) * 100;
 	}
 	
-	// Initialize slider position based on default color value (1.0)
-	let sliderValue = colorValueToSlider(1.0); // ~67.7 for value 1.0
+	// Initialize slider position based on default color value (0.2)
+	let sliderValue = colorValueToSlider(0.2); // ~32.2 for value 0.2
 	
 	// Update color value when slider changes
 	function handleSliderChange(event: Event) {
