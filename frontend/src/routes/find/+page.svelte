@@ -322,6 +322,7 @@
 										type="button"
 										on:click={removeFile}
 										class="text-red-500 hover:text-red-700 dark:hover:text-red-300"
+										aria-label="Remove selected file"
 									>
 										<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
