@@ -23,7 +23,7 @@
 	// Metadata fields for selection
 	let availableFields = ['phs', 'country', 'region', 'sex', 'ethnicity', 'ethnicity_source', 'ibd_community'];
 	let selectedFields = new Set(['phs']);
-	let crossGroupingMode = false;
+	let crossGroupingMode = true;
 
 	// Shared state for groups (with reconciliation)
 	let groups: Array<{label: string, size: number}> = [];
@@ -36,7 +36,7 @@
 
 	// Cross-Grouping mode state
 	// Primary axis uses the main selectedFields and selectedGroups
-	let secondaryFields = new Set<string>(); 
+	let secondaryFields = new Set<string>(['phs', 'region']); 
 	let secondaryGroups: Array<{label: string, size: number}> = [];
 	let selectedSecondaryGroups = new Set<string>();
 
@@ -168,13 +168,21 @@
 			const wasSecondaryEmpty = secondaryGroups.length === 0;
 			
 			// Use the generic reconciliation function
-			const reconciledSecondarySelections = reconcileGroupSelections(
+			let reconciledSecondarySelections = reconcileGroupSelections(
 				previousSecondarySelections,
 				newSecondaryGroups,
 				lastSecondaryFields,
 				secondaryFields,
 				wasSecondaryEmpty
 			);
+			
+			// On initial load, override with 1000Genomes groups if this is the default selection
+			if (wasSecondaryEmpty && previousSecondarySelections.length === 0) {
+				const thousandGenomesGroups = newSecondaryGroups.filter(is1000GenomesGroup);
+				if (thousandGenomesGroups.length > 0) {
+					reconciledSecondarySelections = new Set(thousandGenomesGroups.map(g => g.label));
+				}
+			}
 			
 			secondaryGroups = newSecondaryGroups;
 			selectedSecondaryGroups = reconciledSecondarySelections;
@@ -237,13 +245,21 @@
 			const wasSecondaryEmpty = secondaryGroups.length === 0;
 			
 			// Use the generic reconciliation function
-			const reconciledSecondarySelections = reconcileGroupSelections(
+			let reconciledSecondarySelections = reconcileGroupSelections(
 				previousSecondarySelections,
 				data.groups,
 				lastSecondaryFields,
 				secondaryFields,
 				wasSecondaryEmpty
 			);
+			
+			// On initial load, override with 1000Genomes groups if this is the default selection
+			if (wasSecondaryEmpty && previousSecondarySelections.length === 0) {
+				const thousandGenomesGroups = data.groups.filter(is1000GenomesGroup);
+				if (thousandGenomesGroups.length > 0) {
+					reconciledSecondarySelections = new Set(thousandGenomesGroups.map(g => g.label));
+				}
+			}
 			
 			secondaryGroups = data.groups;
 			selectedSecondaryGroups = reconciledSecondarySelections;
@@ -348,6 +364,11 @@
 		return parentSelections;
 	}
 
+	// Filter function for 1000Genomes groups
+	function is1000GenomesGroup(group: {label: string, size: number}): boolean {
+		return group.label.includes('1000Genomes');
+	}
+
 	// Generic reconciliation function - can be used for both primary and secondary groups
 	function reconcileGroupSelections(
 		previousSelections: string[], 
@@ -411,7 +432,7 @@
 	// Only show toast when switching tabs, not when modifying fields within same tab
 	let lastActiveTab = activeTab;
 	let lastSelectedFields = new Set(selectedFields); // Track previous field selection
-	let lastSecondaryFields = new Set<string>(); // Track previous secondary field selection
+	let lastSecondaryFields = new Set(secondaryFields); // Track previous secondary field selection
 	async function reconcileGroups(newGroups: Array<{label: string, size: number}>) {
 		const previousSelections = [...selectedGroups];
 		const wasEmpty = groups.length === 0;
@@ -499,7 +520,7 @@
 	}
 
 	// Reactive: Load secondary-axis groups when cross-grouping mode is enabled and secondaryFields change
-	$: if (crossGroupingMode) {
+	$: if (crossGroupingMode && data.length > 0 && !loading) {
 		if (secondaryFields.size > 0) {
 			if (activeTab === 'pca') {
 				loadPcaSecondaryGroups();
