@@ -20,7 +20,7 @@
 
 	// Metadata fields for selection
 	let availableFields = ['phs', 'country', 'region', 'sex', 'ethnicity', 'ethnicity_source', 'ibd_community'];
-	let selectedFields = new Set(['ethnicity']);
+	let selectedFields = new Set(['phs']);
 	let crossGroupingMode = false;
 
 	// Shared state for groups (with reconciliation)
@@ -162,16 +162,24 @@
 		groupsLoading = true;
 		try {
 			const newSecondaryGroups = generatePcaGroups(secondaryFields);
+			const previousSecondarySelections = [...selectedSecondaryGroups];
+			const wasSecondaryEmpty = secondaryGroups.length === 0;
 			
-			// Reconcile secondary selections using same logic pattern as IBD secondary groups
-			const reconciledSecondarySelections = new Set(
-				[...selectedSecondaryGroups].filter(selection => 
-					newSecondaryGroups.some(group => group.label === selection)
-				)
+			// Use the generic reconciliation function
+			const reconciledSecondarySelections = reconcileGroupSelections(
+				previousSecondarySelections,
+				newSecondaryGroups,
+				lastSecondaryFields,
+				secondaryFields,
+				wasSecondaryEmpty,
+				8 // Use 8 for secondary groups default
 			);
 			
 			secondaryGroups = newSecondaryGroups;
-			selectedSecondaryGroups = reconciledSecondarySelections.size > 0 ? reconciledSecondarySelections : new Set(newSecondaryGroups.slice(0, 8).map(g => g.label));
+			selectedSecondaryGroups = reconciledSecondarySelections;
+			
+			// Update tracking variables
+			lastSecondaryFields = new Set(secondaryFields);
 			
 			// Mark secondary groups as reconciled for current field selection
 			secondaryGroupsReconciledForFields = new Set(secondaryFields);
@@ -224,15 +232,24 @@
 			}
 			const data = await res.json();
 			
-			// Reconcile secondary selections
-			const reconciledSecondarySelections = new Set(
-				[...selectedSecondaryGroups].filter(selection => 
-					data.groups.some(group => group.label === selection)
-				)
+			const previousSecondarySelections = [...selectedSecondaryGroups];
+			const wasSecondaryEmpty = secondaryGroups.length === 0;
+			
+			// Use the generic reconciliation function
+			const reconciledSecondarySelections = reconcileGroupSelections(
+				previousSecondarySelections,
+				data.groups,
+				lastSecondaryFields,
+				secondaryFields,
+				wasSecondaryEmpty,
+				8 // Use 8 for secondary groups default
 			);
 			
 			secondaryGroups = data.groups;
-			selectedSecondaryGroups = reconciledSecondarySelections.size > 0 ? reconciledSecondarySelections : new Set(data.groups.slice(0, 8).map(g => g.label));
+			selectedSecondaryGroups = reconciledSecondarySelections;
+			
+			// Update tracking variables
+			lastSecondaryFields = new Set(secondaryFields);
 			
 			// Mark secondary groups as reconciled for current field selection
 			secondaryGroupsReconciledForFields = new Set(secondaryFields);
@@ -331,14 +348,16 @@
 		return parentSelections;
 	}
 
-	// Smart reconciliation: preserve selections using semantic matching
-	// Only show toast when switching tabs, not when modifying fields within same tab
-	let lastActiveTab = activeTab;
-	let lastSelectedFields = new Set(selectedFields); // Track previous field selection
-	async function reconcileGroups(newGroups: Array<{label: string, size: number}>) {
-		const previousSelections = [...selectedGroups];
-		
-		// Try exact matches first (for tab switches or no field changes)
+	// Generic reconciliation function - can be used for both primary and secondary groups
+	function reconcileGroupSelections(
+		previousSelections: string[], 
+		newGroups: Array<{label: string, size: number}>,
+		previousFields: Set<string>,
+		currentFields: Set<string>,
+		wasGroupsEmpty: boolean,
+		maxDefaultSelected: number = MAX_DEFAULT_SELECTED_GROUPS
+	): Set<string> {
+		// Try exact matches first
 		const exactMatches = new Set(
 			previousSelections.filter(selection => 
 				newGroups.some(group => group.label === selection)
@@ -347,48 +366,89 @@
 
 		// Try semantic matching if exact matches failed and fields changed
 		let reconciledSelections = exactMatches;
-		if (exactMatches.size === 0 && previousSelections.length > 0 && !setsEqual(lastSelectedFields, selectedFields)) {
+		if (exactMatches.size === 0 && previousSelections.length > 0 && !setsEqual(previousFields, currentFields)) {
 			// Determine if fields were added or removed
-			const oldFieldCount = lastSelectedFields.size;
-			const newFieldCount = selectedFields.size;
+			const oldFieldCount = previousFields.size;
+			const newFieldCount = currentFields.size;
 			
 			if (newFieldCount > oldFieldCount) {
 				// Fields were added - find child groups (more specific)
-				reconciledSelections = findChildGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+				reconciledSelections = findChildGroups(previousSelections, newGroups, previousFields, currentFields);
 			} else if (newFieldCount < oldFieldCount) {
 				// Fields were removed - find parent groups (less specific, "round up")
-				reconciledSelections = findParentGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+				reconciledSelections = findParentGroups(previousSelections, newGroups, previousFields, currentFields);
 			} else {
 				// Same number of fields but different fields - try both approaches
-				const childMatches = findChildGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
-				const parentMatches = findParentGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+				const childMatches = findChildGroups(previousSelections, newGroups, previousFields, currentFields);
+				const parentMatches = findParentGroups(previousSelections, newGroups, previousFields, currentFields);
 				reconciledSelections = childMatches.size > 0 ? childMatches : parentMatches;
 			}
 		}
 		
-		// Check if groups array was empty before this update
-		const wasEmpty = groups.length === 0;
-		
-		// Update state
-		groups = newGroups;
-		
 		// Only auto-select if groups array was previously empty (initial load or no metadata fields)
 		// If user deselected all groups, respect that choice
-		if (reconciledSelections.size === 0 && newGroups.length > 0 && wasEmpty) {
-			const topGroups = newGroups.slice(0, MAX_DEFAULT_SELECTED_GROUPS).map(g => g.label);
-			selectedGroups = new Set(topGroups);
+		if (reconciledSelections.size === 0 && newGroups.length > 0 && wasGroupsEmpty) {
+			const topGroups = newGroups.slice(0, maxDefaultSelected).map(g => g.label);
+			return new Set(topGroups);
 		} else {
-			// Apply group limit when switching tabs to prevent expensive computations (especially IBD)
-			if (reconciledSelections.size > MAX_DEFAULT_SELECTED_GROUPS) {
+			// Apply group limit when over the limit to prevent expensive computations
+			if (reconciledSelections.size > maxDefaultSelected) {
 				// Keep only the top groups by size when over the limit
 				const sortedBySize = Array.from(reconciledSelections)
 					.map(label => ({ label, size: newGroups.find(g => g.label === label)?.size || 0 }))
 					.sort((a, b) => b.size - a.size)
-					.slice(0, MAX_DEFAULT_SELECTED_GROUPS)
+					.slice(0, maxDefaultSelected)
 					.map(g => g.label);
-				selectedGroups = new Set(sortedBySize);
+				return new Set(sortedBySize);
 			} else {
-				selectedGroups = reconciledSelections;
+				return reconciledSelections;
+			}
+		}
+	}
+
+	// Smart reconciliation: preserve selections using semantic matching
+	// Only show toast when switching tabs, not when modifying fields within same tab
+	let lastActiveTab = activeTab;
+	let lastSelectedFields = new Set(selectedFields); // Track previous field selection
+	let lastSecondaryFields = new Set<string>(); // Track previous secondary field selection
+	async function reconcileGroups(newGroups: Array<{label: string, size: number}>) {
+		const previousSelections = [...selectedGroups];
+		const wasEmpty = groups.length === 0;
+		
+		// Use the generic reconciliation function
+		const reconciledSelections = reconcileGroupSelections(
+			previousSelections,
+			newGroups,
+			lastSelectedFields,
+			selectedFields,
+			wasEmpty
+		);
+		
+		// Update state
+		groups = newGroups;
+		selectedGroups = reconciledSelections;
+		
+		// Calculate metrics for toast notifications
+		const exactMatches = new Set(
+			previousSelections.filter(selection => 
+				newGroups.some(group => group.label === selection)
+			)
+		);
+		
+		// Try semantic matching for notification calculation
+		let semanticMatches = exactMatches;
+		if (exactMatches.size === 0 && previousSelections.length > 0 && !setsEqual(lastSelectedFields, selectedFields)) {
+			const oldFieldCount = lastSelectedFields.size;
+			const newFieldCount = selectedFields.size;
+			
+			if (newFieldCount > oldFieldCount) {
+				semanticMatches = findChildGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+			} else if (newFieldCount < oldFieldCount) {
+				semanticMatches = findParentGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+			} else {
+				const childMatches = findChildGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+				const parentMatches = findParentGroups(previousSelections, newGroups, lastSelectedFields, selectedFields);
+				semanticMatches = childMatches.size > 0 ? childMatches : parentMatches;
 			}
 		}
 		
@@ -397,8 +457,8 @@
 		// 2. Some were lost
 		// 3. This is happening due to a tab change (not field modification)
 		const totalLost = previousSelections.length - selectedGroups.size;
-		const unavailableLost = previousSelections.length - (exactMatches.size + reconciledSelections.size);
-		const limitLost = reconciledSelections.size - selectedGroups.size;
+		const unavailableLost = previousSelections.length - (exactMatches.size + semanticMatches.size);
+		const limitLost = semanticMatches.size - selectedGroups.size;
 		const isTabChange = lastActiveTab !== activeTab;
 		const isFieldChange = !setsEqual(lastSelectedFields, selectedFields);
 		
