@@ -10,6 +10,8 @@
 	const MIN_QUERY_GROUP_SIZE = 30;
 	// Maximum number of groups to select by default (performance protection)
 	const MAX_DEFAULT_SELECTED_GROUPS = 12;
+	// Maximum number of groups when switching tabs (to prevent long computation times)
+	const MAX_TAB_SWITCH_GROUPS = 24;
 
 	let data: any[] = [];
 	let Plotly: any;
@@ -171,8 +173,7 @@
 				newSecondaryGroups,
 				lastSecondaryFields,
 				secondaryFields,
-				wasSecondaryEmpty,
-				8 // Use 8 for secondary groups default
+				wasSecondaryEmpty
 			);
 			
 			secondaryGroups = newSecondaryGroups;
@@ -241,8 +242,7 @@
 				data.groups,
 				lastSecondaryFields,
 				secondaryFields,
-				wasSecondaryEmpty,
-				8 // Use 8 for secondary groups default
+				wasSecondaryEmpty
 			);
 			
 			secondaryGroups = data.groups;
@@ -355,7 +355,8 @@
 		previousFields: Set<string>,
 		currentFields: Set<string>,
 		wasGroupsEmpty: boolean,
-		maxDefaultSelected: number = MAX_DEFAULT_SELECTED_GROUPS
+		maxDefaultSelected: number = MAX_DEFAULT_SELECTED_GROUPS,
+		maxTabSwitchSelected: number = MAX_TAB_SWITCH_GROUPS
 	): Set<string> {
 		// Try exact matches first
 		const exactMatches = new Set(
@@ -391,13 +392,13 @@
 			const topGroups = newGroups.slice(0, maxDefaultSelected).map(g => g.label);
 			return new Set(topGroups);
 		} else {
-			// Apply group limit when over the limit to prevent expensive computations
-			if (reconciledSelections.size > maxDefaultSelected) {
+			// Apply tab switch limit when over the limit to prevent expensive computations
+			if (reconciledSelections.size > maxTabSwitchSelected) {
 				// Keep only the top groups by size when over the limit
 				const sortedBySize = Array.from(reconciledSelections)
 					.map(label => ({ label, size: newGroups.find(g => g.label === label)?.size || 0 }))
 					.sort((a, b) => b.size - a.size)
-					.slice(0, maxDefaultSelected)
+					.slice(0, maxTabSwitchSelected)
 					.map(g => g.label);
 				return new Set(sortedBySize);
 			} else {
@@ -469,7 +470,7 @@
 			} else if (unavailableLost > 0) {
 				toast.info(`${unavailableLost} selections not available in ${activeTab.toUpperCase()}`);
 			} else if (limitLost > 0) {
-				toast.info(`Selections limited to ${MAX_DEFAULT_SELECTED_GROUPS} on switch - lost ${limitLost}`);
+				toast.info(`Selections limited to ${MAX_TAB_SWITCH_GROUPS} on switch - lost ${limitLost}`);
 			}
 		}
 		
