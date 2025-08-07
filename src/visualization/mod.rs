@@ -19,7 +19,7 @@ const IBD_MATRIX_PATH: &str = "data/visualization_data/ibd.all.mtx";
 
 /// Canonical order for grouping fields (ensures consistent cache keys)
 /// Matches frontend field order for consistency
-const CANONICAL_FIELD_ORDER: &[&str] = &[
+pub const CANONICAL_FIELD_ORDER: &[&str] = &[
     "phs",
     "country",
     "region",

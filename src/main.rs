@@ -11,11 +11,59 @@ mod database;
 mod models;
 mod visualization;
 
-/// Number of top communities to use for cache warming
-const CACHE_WARMING_COMMUNITIES_NUM: usize = 16;
+/// Number of top groups to use for cache warming (matches frontend MAX_DEFAULT_SELECTED_GROUPS)
+const CACHE_WARMING_TOP_GROUPS: usize = 12;
 
 /// Notification check interval in seconds
 const NOTIFICATION_CHECK_INTERVAL_SECONDS: u64 = 60;
+
+/// Warm cache for a specific field combination (single field or comma-separated fields)
+async fn warm_field_cache(
+    grouping: &str,
+) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    // Get groups for this field combination
+    let groups_response =
+        api::explore::get_ibd_groups(axum::extract::Query(api::explore::IbdGroupsQuery {
+            grouping: grouping.to_string(),
+            min_size: None,
+        }))
+        .await
+        .map_err(|e| format!("Failed to get groups: {:?}", e))?;
+
+    // Parse the JSON response
+    let groups_data = serde_json::from_value::<serde_json::Value>(groups_response.0)?;
+
+    if let Some(groups_array) = groups_data.get("groups").and_then(|v| v.as_array()) {
+        let top_k_labels: Vec<String> = groups_array
+            .iter()
+            .filter_map(|g| {
+                let label = g.get("label")?.as_str()?;
+                if label != "Unknown" {
+                    Some(label.to_string())
+                } else {
+                    None
+                }
+            })
+            .take(CACHE_WARMING_TOP_GROUPS)
+            .collect();
+
+        if !top_k_labels.is_empty() {
+            let matrix_request = api::explore::IbdMatrixQuery {
+                grouping: grouping.to_string(),
+                selected_groups: top_k_labels.clone(),
+            };
+
+            api::explore::compute_ibd_matrix(axum::extract::Json(matrix_request))
+                .await
+                .map_err(|e| format!("Failed to compute matrix: {:?}", e))?;
+            Ok(top_k_labels.len())
+        } else {
+            Ok(0)
+        }
+    } else {
+        Err("Invalid groups response format".into())
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -46,82 +94,51 @@ async fn main() {
             Err(e) => tracing::error!("Failed to warm basic visualization cache: {:?}", e),
         }
 
-        // Then warm the IBD matrix computation for top k communities (default view)
-        tracing::info!(
-            "Warming IBD matrix cache for top {} communities...",
-            CACHE_WARMING_COMMUNITIES_NUM
-        );
+        // Enhanced cache warming: individual metadata fields and pairs
+        tracing::info!("Starting enhanced cache warming for metadata fields...");
 
-        // Get the top k community labels
-        match api::explore::get_ibd_groups(axum::extract::Query(api::explore::IbdGroupsQuery {
-            grouping: "ibd_community".to_string(),
-            min_size: Some(30),
-        }))
-        .await
-        {
-            Ok(groups_response) => {
-                // Parse the JSON response
-                if let Ok(groups_data) =
-                    serde_json::from_value::<serde_json::Value>(groups_response.0.clone())
-                {
-                    if let Some(groups_array) = groups_data.get("groups").and_then(|v| v.as_array())
-                    {
-                        let top_k_labels: Vec<String> = groups_array
-                            .iter()
-                            .filter_map(|g| {
-                                let label = g.get("label")?.as_str()?;
-                                if label != "Unknown" {
-                                    Some(label.to_string())
-                                } else {
-                                    None
-                                }
-                            })
-                            .take(CACHE_WARMING_COMMUNITIES_NUM)
-                            .collect();
+        // Warm cache for individual metadata fields
+        tracing::info!("Warming cache for individual metadata fields...");
+        for field in visualization::CANONICAL_FIELD_ORDER {
+            match warm_field_cache(field).await {
+                Ok(count) => tracing::info!("Warmed {} top groups for field: {}", count, field),
+                Err(e) => tracing::error!("Failed to warm cache for field '{}': {:?}", field, e),
+            }
+        }
 
-                        if !top_k_labels.is_empty() {
-                            let matrix_request = api::explore::IbdMatrixQuery {
-                                grouping: "ibd_community".to_string(),
-                                selected_groups: top_k_labels.clone(),
-                            };
-
-                            match api::explore::compute_ibd_matrix(axum::extract::Json(
-                                matrix_request,
-                            ))
-                            .await
-                            {
-                                Ok(_) => tracing::info!(
-                                    "IBD matrix cache warmed for {} communities",
-                                    top_k_labels.len()
-                                ),
-                                Err(e) => {
-                                    tracing::error!("Failed to warm IBD matrix cache: {:?}", e)
-                                }
-                            }
-                        } else {
-                            tracing::warn!("No valid communities found for cache warming");
-                        }
-                    } else {
-                        tracing::error!("Invalid groups response format for cache warming");
-                    }
-                } else {
-                    tracing::error!("Failed to parse groups response for cache warming");
+        // Warm cache for pairs of metadata fields
+        tracing::info!("Warming cache for pairs of metadata fields...");
+        for (i, field1) in visualization::CANONICAL_FIELD_ORDER.iter().enumerate() {
+            for field2 in visualization::CANONICAL_FIELD_ORDER.iter().skip(i + 1) {
+                let field_combination = format!("{},{}", field1, field2);
+                match warm_field_cache(&field_combination).await {
+                    Ok(count) => tracing::info!(
+                        "Warmed {} top groups for fields: {}",
+                        count,
+                        field_combination
+                    ),
+                    Err(e) => tracing::error!(
+                        "Failed to warm cache for fields '{}': {:?}",
+                        field_combination,
+                        e
+                    ),
                 }
             }
-            Err(e) => tracing::error!("Failed to get communities for cache warming: {:?}", e),
         }
+
+        tracing::info!("Enhanced cache warming completed");
     });
 
     // Start notification monitoring task
     tracing::info!("Starting notification monitoring task...");
     tokio::spawn(async {
-        let mut interval = tokio::time::interval(
-            tokio::time::Duration::from_secs(NOTIFICATION_CHECK_INTERVAL_SECONDS)
-        );
-        
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(
+            NOTIFICATION_CHECK_INTERVAL_SECONDS,
+        ));
+
         loop {
             interval.tick().await;
-            
+
             match models::Notification::process_pending_notifications().await {
                 Ok(count) if count > 0 => {
                     tracing::info!("Processed {} pending notifications", count);
@@ -160,14 +177,32 @@ async fn main() {
         )
         .route("/api/ibd-groups", get(api::explore::get_ibd_groups))
         .route("/api/ibd-matrix", post(api::explore::compute_ibd_matrix))
-        .route("/api/ibd-matrix-asymmetric", post(api::explore::compute_asymmetric_ibd_matrix))
+        .route(
+            "/api/ibd-matrix-asymmetric",
+            post(api::explore::compute_asymmetric_ibd_matrix),
+        )
         .route("/api/citations", get(api::publication::get_citations))
         // Notification routes
-        .route("/api/notifications", get(api::notifications::get_notifications))
-        .route("/api/notifications/unread-count", get(api::notifications::get_unread_count))
-        .route("/api/notifications/mark-read", post(api::notifications::mark_as_read))
-        .route("/api/notifications/mark-all-read", post(api::notifications::mark_all_as_read))
-        .route("/api/notifications/process-pending", post(api::notifications::process_pending_notifications))
+        .route(
+            "/api/notifications",
+            get(api::notifications::get_notifications),
+        )
+        .route(
+            "/api/notifications/unread-count",
+            get(api::notifications::get_unread_count),
+        )
+        .route(
+            "/api/notifications/mark-read",
+            post(api::notifications::mark_as_read),
+        )
+        .route(
+            "/api/notifications/mark-all-read",
+            post(api::notifications::mark_all_as_read),
+        )
+        .route(
+            "/api/notifications/process-pending",
+            post(api::notifications::process_pending_notifications),
+        )
         // Static file serving for frontend
         .fallback_service(ServeDir::new("frontend/build"))
         // Middleware
