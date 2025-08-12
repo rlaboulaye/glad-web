@@ -8,7 +8,11 @@ CREATE TABLE query (
 	self_described_latino INTEGER NOT NULL,
 	n_controls INTEGER NOT NULL DEFAULT 100,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'completed', 'errored')) DEFAULT 'pending',
+	user_visible_status TEXT NOT NULL CHECK(user_visible_status IN ('pending', 'processing', 'completed', 'failed')) DEFAULT 'pending',
+	internal_status TEXT NOT NULL CHECK(internal_status IN ('pending', 'processing', 'retry_pending', 'failed_permanent', 'completed')) DEFAULT 'pending',
 	status_updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	retry_count INTEGER NOT NULL DEFAULT 0,
+	last_error_message TEXT DEFAULT NULL,
+	result_file_path TEXT DEFAULT NULL,
 	FOREIGN KEY (user_id) REFERENCES user(user_id)
 );
