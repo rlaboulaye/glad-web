@@ -21,7 +21,7 @@
 	let activeTab = 'pca'; // 'pca' or 'ibd'
 
 	// Metadata fields for selection
-	let availableFields = ['phs', 'country', 'region', 'sex', 'ethnicity', 'ethnicity_source', 'ibd_community'];
+	let availableFields = ['phs', 'country', 'region', 'sex', 'ethnicity', 'ethnicity_source', 'ibd_community', '1000_genomes_label'];
 	let selectedFields = new Set(['phs']);
 	let crossGroupingMode = false;
 

@@ -27,6 +27,7 @@ pub const CANONICAL_FIELD_ORDER: &[&str] = &[
     "ethnicity",
     "ethnicity_source",
     "ibd_community",
+    "1000_genomes_label",
 ];
 
 /// Minimum group size for privacy protection
@@ -110,6 +111,8 @@ pub struct Individual {
     pub project: Option<String>,
     pub ibd_community: Option<String>,
     pub glad_status: Option<String>,
+    #[serde(rename = "1000_genomes_label")]
+    pub thousand_genomes_population: Option<String>,
     /// Index in the IBD sparse matrix (row/column index), None if not in IBD data
     #[serde(skip)]
     pub ibd_matrix_index: Option<usize>,
@@ -203,6 +206,10 @@ impl VisualizationCache {
                         .and_then(|v| v.as_str())
                         .map(String::from),
                     glad_status: None, // Not included in consolidated metadata
+                    thousand_genomes_population: item
+                        .get("1000_genomes")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                     ibd_matrix_index: item
                         .get("ibd_matrix_index")
                         .and_then(|v| v.as_u64())
@@ -451,6 +458,7 @@ impl VisualizationCache {
             "ethnicity" => individual.ethnicity.clone(),
             "ethnicity_source" => individual.ethnicity_source.clone(),
             "ibd_community" => individual.ibd_community.clone(),
+            "1000_genomes_label" => individual.thousand_genomes_population.clone(),
             _ => None, // Reject non-canonical fields
         }
     }
