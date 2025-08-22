@@ -23,7 +23,7 @@
 	// Metadata fields for selection
 	let availableFields = ['phs', 'country', 'region', 'sex', 'ethnicity', 'ethnicity_source', 'ibd_community'];
 	let selectedFields = new Set(['phs']);
-	let crossGroupingMode = true;
+	let crossGroupingMode = false;
 
 	// Shared state for groups (with reconciliation)
 	let groups: Array<{label: string, size: number}> = [];
@@ -36,7 +36,7 @@
 
 	// Cross-Grouping mode state
 	// Primary axis uses the main selectedFields and selectedGroups
-	let secondaryFields = new Set<string>(['phs', 'region']); 
+	let secondaryFields = new Set<string>(); 
 	let secondaryGroups: Array<{label: string, size: number}> = [];
 	let selectedSecondaryGroups = new Set<string>();
 
@@ -176,13 +176,6 @@
 				wasSecondaryEmpty
 			);
 			
-			// On initial load, override with 1000Genomes groups if this is the default selection
-			if (wasSecondaryEmpty && previousSecondarySelections.length === 0) {
-				const thousandGenomesGroups = newSecondaryGroups.filter(is1000GenomesGroup);
-				if (thousandGenomesGroups.length > 0) {
-					reconciledSecondarySelections = new Set(thousandGenomesGroups.map(g => g.label));
-				}
-			}
 			
 			secondaryGroups = newSecondaryGroups;
 			selectedSecondaryGroups = reconciledSecondarySelections;
@@ -253,13 +246,6 @@
 				wasSecondaryEmpty
 			);
 			
-			// On initial load, override with 1000Genomes groups if this is the default selection
-			if (wasSecondaryEmpty && previousSecondarySelections.length === 0) {
-				const thousandGenomesGroups = data.groups.filter(is1000GenomesGroup);
-				if (thousandGenomesGroups.length > 0) {
-					reconciledSecondarySelections = new Set(thousandGenomesGroups.map(g => g.label));
-				}
-			}
 			
 			secondaryGroups = data.groups;
 			selectedSecondaryGroups = reconciledSecondarySelections;
@@ -364,10 +350,6 @@
 		return parentSelections;
 	}
 
-	// Filter function for 1000Genomes groups
-	function is1000GenomesGroup(group: {label: string, size: number}): boolean {
-		return group.label.includes('1000Genomes');
-	}
 
 	// Generic reconciliation function - can be used for both primary and secondary groups
 	function reconcileGroupSelections(
