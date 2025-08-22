@@ -24,6 +24,8 @@
 	let availableFields = ['phs', 'country', 'region', 'sex', 'ethnicity', 'ethnicity_source', 'ibd_community', '1000_genomes_label'];
 	let selectedFields = new Set(['phs']);
 	let crossGroupingMode = false;
+	// Flag to trigger 1000 Genomes auto-selection on next secondary group load
+	let shouldAutoSelect1000Genomes = false;
 
 	// Shared state for groups (with reconciliation)
 	let groups: Array<{label: string, size: number}> = [];
@@ -78,6 +80,22 @@
 			secondaryFields = new Set();
 			selectedSecondaryGroups = new Set();
 		}
+	}
+
+	function handleCompareToThousandGenomes() {
+		// Enable cross-grouping mode if not already enabled
+		if (!crossGroupingMode) {
+			crossGroupingMode = true;
+		}
+		
+		// Set secondary fields to 1000_genomes_label
+		secondaryFields = new Set(['1000_genomes_label']);
+		
+		// Set flag to auto-select 1000 Genomes populations when groups load
+		shouldAutoSelect1000Genomes = true;
+		
+		// Clear first, will be populated when groups load
+		selectedSecondaryGroups = new Set();
 	}
 
 	function handleGroupsChanged(event) {
@@ -180,6 +198,15 @@
 			secondaryGroups = newSecondaryGroups;
 			selectedSecondaryGroups = reconciledSecondarySelections;
 			
+			// Auto-select 1000 Genomes populations if flag is set
+			if (shouldAutoSelect1000Genomes) {
+				const thousandGenomesGroups = newSecondaryGroups
+					.filter(group => group.label !== 'Unknown')
+					.map(group => group.label);
+				selectedSecondaryGroups = new Set(thousandGenomesGroups);
+				shouldAutoSelect1000Genomes = false; // Clear flag
+			}
+			
 			// Update tracking variables
 			lastSecondaryFields = new Set(secondaryFields);
 			
@@ -249,6 +276,15 @@
 			
 			secondaryGroups = data.groups;
 			selectedSecondaryGroups = reconciledSecondarySelections;
+			
+			// Auto-select 1000 Genomes populations if flag is set
+			if (shouldAutoSelect1000Genomes) {
+				const thousandGenomesGroups = data.groups
+					.filter(group => group.label !== 'Unknown')
+					.map(group => group.label);
+				selectedSecondaryGroups = new Set(thousandGenomesGroups);
+				shouldAutoSelect1000Genomes = false; // Clear flag
+			}
 			
 			// Update tracking variables
 			lastSecondaryFields = new Set(secondaryFields);
@@ -392,7 +428,10 @@
 		// Only auto-select if groups array was previously empty (initial load or no metadata fields)
 		// If user deselected all groups, respect that choice
 		if (reconciledSelections.size === 0 && newGroups.length > 0 && wasGroupsEmpty) {
-			const topGroups = newGroups.slice(0, maxDefaultSelected).map(g => g.label);
+			const topGroups = newGroups
+				.filter(g => g.label !== 'Unknown')
+				.slice(0, maxDefaultSelected)
+				.map(g => g.label);
 			return new Set(topGroups);
 		} else {
 			// Apply tab switch limit when over the limit to prevent expensive computations
@@ -642,6 +681,7 @@
 				on:fieldsChanged={handleFieldsChanged}
 				on:secondaryFieldsChanged={handleSecondaryFieldsChanged}
 				on:crossGroupingModeToggled={handleCrossGroupingModeToggled}
+				on:compareToThousandGenomes={handleCompareToThousandGenomes}
 			/>
 
 			<!-- Persistent GroupSelector -->

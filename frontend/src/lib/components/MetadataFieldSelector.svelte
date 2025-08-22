@@ -35,6 +35,10 @@
 	function toggleDescriptions() {
 		showDescriptions = !showDescriptions;
 	}
+
+	function handleCompareToThousandGenomes() {
+		dispatch('compareToThousandGenomes');
+	}
 </script>
 
 <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
@@ -52,6 +56,14 @@
 					{showDescriptions ? '📖 Hide Info' : '📖 Field Info'}
 				</button>
 				
+				<!-- 1000 Genomes comparison button -->
+				<button
+					class="px-4 py-2 text-sm font-medium rounded-md border transition-colors duration-200 bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500"
+					on:click={handleCompareToThousandGenomes}
+				>
+					🧬 Compare to 1000 Genomes
+				</button>
+
 				{#if proposeCrossGrouping}
 					<button
 						class="px-4 py-2 text-sm font-medium rounded-md border transition-colors duration-200 bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500"
