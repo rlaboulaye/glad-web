@@ -3,8 +3,11 @@ import json
 import numpy as np
 import pandas as pd
 
+EXCLUDE = set([])
+
 # Define Paths
 demo_file = "demographic.txt"
+igsr_file = "igsr_samples.tsv"
 ids_file = "ids.txt"
 pca_file = "pca.10dims.tsv"
 ibd_file = "ibd.tsv"
@@ -17,6 +20,10 @@ pca["id"] = ids  # align IDs to PCA rows
 
 # Load demographics
 demo = pd.read_csv(demo_file, sep="\t", header=0)
+
+# Load IGSR
+igsr = pd.read_csv(igsr_file, sep="\t", header=0, index_col=0)
+igsr_ids = set(igsr.index.tolist())
 
 # Merge PCA and demographics
 merged = pd.merge(pca, demo, how="left", left_on="id", right_on="ID")
@@ -50,11 +57,14 @@ for _, row in merged.iterrows():
         "ethnicity_source": row.get("GLAD_Status", None),
         "ibd_matrix_index": row.get("Vcf_ID", None),
         "ibd_community": row.get("Membership", None),
+        "1000_genomes": None if row["id"] not in igsr_ids else igsr.loc[row["id"]]["Population code"],
     }
     if record["ibd_matrix_index"] and not np.isnan(record["ibd_matrix_index"]):
         record["ibd_matrix_index"] = int(record["ibd_matrix_index"])
     if record["ethnicity_source"] == "self_described":
         record["ethnicity_source"] = "survey_defined"
+    if record["phs"] in EXCLUDE:
+        continue
     records.append(record)
 
 
