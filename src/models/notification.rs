@@ -22,16 +22,13 @@ impl Notification {
         let (title, message) = match status {
             "completed" => (
                 "Query Completed".to_string(),
-                format!(
-                    "Your query '{}' has completed successfully",
-                    query_title
-                ),
+                format!("Your query '{}' has completed successfully.", query_title),
             ),
-            "errored" => (
+            "failed" => (
                 "Query Error".to_string(),
-                format!("Your query '{}' has errored", query_title),
+                format!("Your query '{}' has failed.", query_title),
             ),
-            _ => return Err(sqlx::Error::RowNotFound), // Only create notifications for completed/errored
+            _ => return Err(sqlx::Error::RowNotFound), // Only create notifications for completed/failed
         };
 
         let result = sqlx::query!(
@@ -123,15 +120,20 @@ impl Notification {
     ) -> Result<Vec<(i64, i64, String, String)>, sqlx::Error> {
         sqlx::query!(
             r#"
-            SELECT q.query_id, q.user_id, q.title, q.status
+            SELECT q.query_id, q.user_id, q.title, q.user_visible_status
             FROM query q
             LEFT JOIN notifications n ON q.query_id = n.query_id
-            WHERE q.status IN ('completed', 'errored')
+            WHERE q.user_visible_status IN ('completed', 'failed')
             AND n.query_id IS NULL
             "#
         )
         .map(|row| {
-            (row.query_id, row.user_id, row.title, row.status)
+            (
+                row.query_id,
+                row.user_id,
+                row.title,
+                row.user_visible_status,
+            )
         })
         .fetch_all(crate::database::get_db())
         .await
@@ -164,7 +166,7 @@ impl Notification {
 
         if created_count > 0 {
             tracing::info!(
-                "Created {} notifications for completed/errored queries",
+                "Created {} notifications for completed/failed queries",
                 created_count
             );
         }
@@ -212,7 +214,7 @@ impl Notification {
         let status = if title == "Query Completed" {
             "Completed"
         } else {
-            "Error"
+            "Failed"
         };
 
         let email_message = mail_send::mail_builder::MessageBuilder::new()
@@ -241,4 +243,3 @@ impl Notification {
         Ok(())
     }
 }
-

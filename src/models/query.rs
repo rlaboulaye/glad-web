@@ -106,7 +106,7 @@ impl Query {
                 .await
                 .expect(&format!("Could not retrieve user_id using username {}", username));
         sqlx::query!(
-            "SELECT query_id, user_id, title, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE user_id=$1 ORDER BY created_at DESC",
+            "SELECT query_id, user_id, title, description, self_described_latino, n_controls, user_visible_status, created_at, status_updated_at FROM query WHERE user_id=$1 ORDER BY created_at DESC",
             logged_user_id,
         )
         .map(|x| Self {
@@ -119,7 +119,7 @@ impl Query {
                     _ => true,
                 },
             n_controls: x.n_controls as usize,
-            status: x.status,
+            status: x.user_visible_status,
             created_at: x.created_at.to_string(),
             status_updated_at: x.status_updated_at.to_string(),
         })
@@ -129,7 +129,7 @@ impl Query {
 
     pub async fn for_query(query_id: i64) -> Result<Self, sqlx::Error> {
         sqlx::query!(
-            "SELECT query_id, user_id, title, description, self_described_latino, n_controls, status, created_at, status_updated_at FROM query WHERE query_id=$1",
+            "SELECT query_id, user_id, title, description, self_described_latino, n_controls, user_visible_status, created_at, status_updated_at FROM query WHERE query_id=$1",
             query_id,
         )
         .map(|x| Self {
@@ -142,7 +142,7 @@ impl Query {
                     _ => true,
                 },
             n_controls: x.n_controls as usize,
-            status: x.status,
+            status: x.user_visible_status,
             created_at: x.created_at.to_string(),
             status_updated_at: x.status_updated_at.to_string(),
         })

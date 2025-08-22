@@ -135,7 +135,7 @@
 							Email Notifications
 						</label>
 						<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-							Receive email notifications when your queries are completed or error
+							Receive email notifications when your queries are completed or fail
 						</p>
 					</div>
 					<div class="ml-4">
